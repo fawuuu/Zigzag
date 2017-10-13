@@ -50,24 +50,28 @@ next_point_global <- function(xi, theta, t_flip, d, derivatives, bounds){
 next_point_hess <- function(xi, theta, t_flip, d, derivatives, a, b){
 
   flip <- FALSE
-  test_taus <- -a/b + sqrt((a/b)^2 + 2/b*(-log(runif(d))))
-  tau <- min(arrivals)
-  ind <- which.min(arrivals)
 
-  a <- a + b*tau
-  newstate <- state
-  xi <- xi + tau*theta
-  t_flip <- t_flip + tau
+  while(flip==FALSE){
 
-  a_temp <- theta[ind]*derivatives(xi)[ind]
-  u <- runif(1)
+    test_taus <- -a/b + sqrt((a/b)^2 + 2/b*(-log(runif(d))))
+    tau <- min(arrivals)
+    ind <- which.min(arrivals)
 
-  if(runif(1) < max(0, a_temp)/max(0, a[ind])){
-    theta[ind] = -theta[ind]
-    flip = TRUE
+    a <- a + b*tau
+    xi <- xi + tau*theta
+    t_flip <- t_flip + tau
+
+    a_temp <- theta[ind]*derivatives(xi)[ind]
+
+    if(runif(1) < max(0, a_temp)/max(0, a[ind])){
+      theta[ind] = -theta[ind]
+      flip = TRUE
+    }
+
+    a[ind] = a_temp*(-1)^as.numeric(flip)
+
   }
 
-  a[ind] = a_temp*(-1)^as.numeric(flip)
   return(list(xi=xi, theta = theta, t_flip <- t_flip, flip=flip, a=a))
 }
 
@@ -121,26 +125,20 @@ skeleton <- function(xi, theta, n, derivatives, bounds, bound_type = "global"){
   if (bound_type == "hessian"){
 
     a = numeric(d); b = numeric(d)
-      for(i in seq_along(1:d)){
+      for(i in 1:d){
           a[i] = theta[i]*derivatives(xi)[i]
-          b[i] = sqrt(d)*sqrt(sum(hessian[,i]^2))
+          b[i] = sqrt(d)*sqrt(sum(bounds[,i]^2))
       }
 
-    while (points <= n){
+    for (i in 2:n){
 
-      test_point <- next_point_hess(xi, theta, t_flip, d, derivatives, a, b)
+      next_point <- next_point_hess(xi, theta, t_flip, d, derivatives, a, b)
 
-        xi <- test_point$xi
-        theta <- test_point$theta
-        t_flip <- test_point$t_flip
+        xi_rec[i, ] <- next_point$xi
+        theta_rec[i, ] <- next_point$theta
+        t_flip_rec[i] <- next_point$t_flip
+        a <- next_point$a
 
-      if (test_point$flip == TRUE){
-
-        xi_rec[points, ] <- xi
-        theta_rec[points, ] <- theta
-        t_flip_rec[points] <- t_flip
-
-        points <- points + 1
       }
     }
 
