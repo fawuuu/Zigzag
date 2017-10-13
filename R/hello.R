@@ -26,7 +26,7 @@ del2 = function(x){
 #intensities as list of functions
 #global bounds as vector
 #state includes both xsi and theta
-poispro = function(state, intensities, bounds){
+poispro_global = function(state, intensities, bounds){
   d = length(intensities)
   flip = FALSE
   arrivals = rexp(d, bounds)
@@ -39,4 +39,8 @@ poispro = function(state, intensities, bounds){
     flip = TRUE
   }
   return(list(state=newstate, time=tau, index=ind, flip=flip))
+}
+
+poispro_linear = function(state, intensities, bounds){
+
 }
