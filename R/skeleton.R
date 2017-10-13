@@ -13,7 +13,8 @@
 #'
 
 # unclear how much this function should include, see somments below in "skeleton"
-next_point_global <- function(xi, theta, t_flip, d, derivatives, bounds){
+#if subsampl=TRUE then derivatives as list of vector-valued functions
+next_point_global <- function(xi, theta, t_flip, d, derivatives, bounds, subsample){
 
     flip <- FALSE
 
@@ -26,9 +27,19 @@ next_point_global <- function(xi, theta, t_flip, d, derivatives, bounds){
       xi <- xi + tau*theta
       t_flip <- t_flip + tau
 
-      if(runif(1) < max(0, theta[ind]*derivatives(xi)[ind])/bounds[ind]){
-        theta[ind] <- -theta[ind]
-        flip = TRUE
+      if(subsample==FALSE){
+
+        if(runif(1) < max(0, theta[ind]*derivatives(xi)[ind])/bounds[ind]){
+          theta[ind] <- -theta[ind]
+          flip = TRUE
+        }
+      }else{
+        j = sample(1, 1:length(derivatives))
+        if(runif(1) < max(0, theta[ind]*derivatives[[j]](xi)[ind])/bounds[ind]){
+          theta[ind] <- -theta[ind]
+          flip = TRUE
+        }
+
       }
 
     }
@@ -86,7 +97,7 @@ next_point_hess <- function(xi, theta, t_flip, d, derivatives, a, b){
 #' @param bounds ...
 #' @param bound_type specifies type of bounds eg global, hessian
 #'
-skeleton <- function(xi, theta, n, derivatives, bounds, bound_type = "global"){
+skeleton <- function(xi, theta, n, derivatives, bounds, bound_type = "global", subsample = FALSE){
 
   #set inital time, no. dimensions and record tables for skeleton
   t_flip <- 0
@@ -97,9 +108,6 @@ skeleton <- function(xi, theta, n, derivatives, bounds, bound_type = "global"){
   t_flip_rec <- numeric(n)
 
   xi_rec[1, ] <- xi; theta_rec[1, ] <- theta
-
-  #start flip counter
-  points <- 2
 
   #order of while & if loops here should be figured out - pointless to check bound_type at every while iteration,
   #but want to do if(test_point$flip == TRUE) part for every bound type, so also pointless to type this many times -
@@ -112,7 +120,7 @@ skeleton <- function(xi, theta, n, derivatives, bounds, bound_type = "global"){
 
     for (i in 2:n){
 
-    next_point <- next_point_global(xi_rec[i-1,], theta_rec[i-1,], t_flip[i-1], d, derivatives, bounds)
+    next_point <- next_point_global(xi_rec[i-1,], theta_rec[i-1,], t_flip[i-1], d, derivatives, bounds, subsample)
 
         xi_rec[i, ] <- next_point$xi
         theta_rec[i, ] <- next_point$theta
@@ -122,7 +130,7 @@ skeleton <- function(xi, theta, n, derivatives, bounds, bound_type = "global"){
   }
 
 
-  if (bound_type == "hessian"){
+  if (subsample == FALSE && bound_type == "hessian"){
 
     a = numeric(d); b = numeric(d)
       for(i in 1:d){
@@ -142,7 +150,6 @@ skeleton <- function(xi, theta, n, derivatives, bounds, bound_type = "global"){
       }
     }
 
-  }
   return(list(xi=xi_rec, theta=theta_rec, t_flip=t_flip_rec))
 }
 
@@ -151,4 +158,4 @@ del = function(x){
   return(2*x/(1+x^2))
 }# max =1
 
-test=skeleton(c(1,1),c(1,1),10000,del,bounds=c(1,1))
+test=skeleton(c(1,1),c(1,1),10000,list(del,del,del),bounds=c(1,1),subsample=TRUE)
