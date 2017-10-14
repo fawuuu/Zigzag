@@ -33,7 +33,9 @@ next_point_global <- function(xi, theta, t_flip, d, derivatives, bounds, subsamp
           theta[ind] <- -theta[ind]
           flip = TRUE
         }
+
       }else{
+
         j = sample(1, 1:length(derivatives))
         if(runif(1) < max(0, theta[ind]*derivatives[[j]](xi)[ind])/bounds[ind]){
           theta[ind] <- -theta[ind]
@@ -55,18 +57,18 @@ next_point_global <- function(xi, theta, t_flip, d, derivatives, bounds, subsamp
 #'@param d number of spatial dimensions
 #'@param dervatives function which takes position x as argument and outputs evaluation of directional derivatives at x
 #'@param a parameter defining hessian-type bound, calculated elsewhere
-#'@param a parameter defining hessian-type bound, calculated elsewhere
+#'@param b parameter defining hessian-type bound, calculated elsewhere
 #'
 #'
-next_point_hess <- function(xi, theta, t_flip, d, derivatives, a, b){
+next_point_hess <- function(xi, theta, t_flip, d, derivatives, bounds){
 
   flip <- FALSE
 
   while(flip==FALSE){
 
     test_taus <- -a/b + sqrt((a/b)^2 + 2/b*(-log(runif(d))))
-    tau <- min(arrivals)
-    ind <- which.min(arrivals)
+    tau <- min(test_taus)
+    ind <- which.min(test_taus)
 
     a <- a + b*tau
     xi <- xi + tau*theta
@@ -83,7 +85,70 @@ next_point_hess <- function(xi, theta, t_flip, d, derivatives, a, b){
 
   }
 
-  return(list(xi=xi, theta = theta, t_flip <- t_flip, flip=flip, a=a))
+  return(list(xi=xi, theta = theta, t_flip = t_flip, a=a))
+}
+
+#' next_point_hess
+#'
+#'@param xi current skeleton position
+#'@param theta current direction
+#'@param t_flip most recent flip time
+#'@param d number of spatial dimensions
+#'@param dervatives list of functions which takes position x as argument and outputs evaluation of directional derivatives at x
+#'@param bounds vector of global Lipschitz constants
+#'@param xi_ref reference point for the bounds
+#'@param dervatives_ref vector of directional derivatives evaluated at the reference point
+#'@param p distances in the p-norm
+#'
+#'
+next_point_lipschitz <- function(xi, theta, t_flip, d, derivatives, bounds, xi_ref, derivatives_ref, p, subsample){
+
+  flip <- FALSE
+  derivatives_ref = theta * derivatives_ref
+  derivatives_ref[which(derivatives_ref<0)] = 0
+  if(p==Inf){
+    a = derivatives_ref + bounds*max(abs(xi-xi_ref))
+    b = bounds
+  }else{
+    a = derivatives_ref + bounds*sum(abs(xi-xi_ref)^p)^(1/p)
+    b = bounds*d^(1/p)
+  }
+
+  while(flip==FALSE){
+
+    test_taus <- -a/b + sqrt((a/b)^2 + 2/b*(-log(runif(d))))
+    tau <- min(test_taus)
+    ind <- which.min(test_taus)
+
+    xi <- xi + tau*theta
+    t_flip <- t_flip + tau
+
+    if(subsample==FALSE){
+
+      if(runif(1) < max(0, derivatives(xi)[ind])/max(0, a[ind]+b*tau)){
+        theta[ind] = -theta[ind]
+        flip = TRUE
+      }
+    }else{
+      j = sample(1, 1:length(derivatives))
+      if(runif(1) < max(0, derivatives[[j]](xi)[ind])/max(0, a[ind]+b*tau)){
+        theta[ind] = -theta[ind]
+        flip = TRUE
+
+    }
+
+
+    if(p==Inf){
+      a = derivatives_ref + bounds*max(abs(xi-xi_ref))
+    }else{
+      a = derivatives_ref + bounds*sum(abs(xi-xi_ref)^p)^(1/p)
+    }
+
+    }
+
+  }
+
+  return(list(xi=xi, theta = theta, t_flip = t_flip))
 }
 
 #' skeleton
@@ -97,7 +162,7 @@ next_point_hess <- function(xi, theta, t_flip, d, derivatives, a, b){
 #' @param bounds ...
 #' @param bound_type specifies type of bounds eg global, hessian
 #'
-skeleton <- function(xi, theta, n, derivatives, bounds, bound_type = "global", subsample = FALSE){
+skeleton <- function(xi, theta, n, derivatives, bounds, bound_type = "global", subsample = FALSE, xi_ref = 0, p = 2){
 
   #set inital time, no. dimensions and record tables for skeleton
   t_flip <- 0
@@ -148,14 +213,32 @@ skeleton <- function(xi, theta, n, derivatives, bounds, bound_type = "global", s
         a <- next_point$a
 
       }
+  }
+
+  if (bound_type == "lipschitz"){
+
+    derivatives_ref = derivatives[[1]](xi_ref)
+    for (j in 2:length(derivatives)){
+      derivatives_ref = derivatives_ref + derivatives[[j]](xi_ref)
     }
+
+    for (i in 2:n){
+
+      next_point <- next_point_lipschitz(xi_rec[i-1,], theta_rec[i-1,], t_flip[i-1], d, derivatives, bounds, xi_ref, derivatives_ref, p, subsample)
+
+      xi_rec[i, ] <- next_point$xi
+      theta_rec[i, ] <- next_point$theta
+      t_flip_rec[i] <- next_point$t_flip
+
+    }
+  }
 
   return(list(xi=xi_rec, theta=theta_rec, t_flip=t_flip_rec))
 }
 
 #####TESTING
 del = function(x){
-  return(2*x/(1+x^2))
+  return(2*x/(1+sum(x^2)))
 }# max =1
 
-test=skeleton(c(1,1),c(1,1),10000,list(del,del,del),bounds=c(1,1),subsample=TRUE)
+test=skeleton(c(1,1),c(1,1),10,list(del,del,del),bounds=c(1,1),bound_type="lipschitz", subsample=TRUE)
