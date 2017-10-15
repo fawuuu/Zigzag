@@ -88,7 +88,7 @@ next_point_hess <- function(xi, theta, t_flip, d, derivatives, bounds){
   return(list(xi=xi, theta = theta, t_flip = t_flip, a=a))
 }
 
-#' next_point_hess
+#' next_point_lipschitz
 #'
 #'@param xi current skeleton position
 #'@param theta current direction
@@ -241,4 +241,4 @@ del = function(x){
   return(2*x/(1+sum(x^2)))
 }# max =1
 
-test=skeleton(c(1,1),c(1,1),10,list(del,del,del),bounds=c(1,1),bound_type="lipschitz", subsample=TRUE)
+test=skeleton(c(1,1),c(1,1),10000,del,bounds=c(1,1),bound_type="global")
