@@ -50,7 +50,7 @@ next_point_global <- function(xi, theta, t_flip, d, derivatives, bounds, subsamp
 }
 
 #' next_point_hess
-#' 
+#'
 #' A function which determines a new skeleton point for the Zig-zag process given Hessian-type bounds on the directional
 #' derivatives
 #'
@@ -80,8 +80,10 @@ next_point_hess <- function(xi, theta, t_flip, d, derivatives, a, b){
     a_temp <- theta[ind]*derivatives(xi)[ind]
 
     if(runif(1) < max(0, a_temp)/max(0, a[ind])){
+
       theta[ind] <- -theta[ind]
       flip <- TRUE
+
     }
 
     a[ind] <- a_temp*(-1)^as.numeric(flip)
@@ -164,10 +166,10 @@ next_point_lipschitz <- function(xi, theta, t_flip, d, derivatives, bounds, xi0,
 #' @param dervatives function which takes position x as argument and outputs evaluation of directional derivatives at x
 #' @param bounds ...
 #' @param bound_type specifies type of bounds eg global, hessian
-#' @param subsample boolean value; false by default; incompatible with hessian bounds; 
-#' @param xi0 reference value for 
+#' @param subsample boolean value; false by default; incompatible with hessian bounds;
+#' @param xi0 reference value for
 #' @param p choice of L_p space
-#' 
+#'
 #'
 skeleton <- function(xi, theta, n, derivatives, bounds, bound_type = "global", subsample = FALSE, xi0 = 0, p = 2){
 
@@ -212,7 +214,7 @@ skeleton <- function(xi, theta, n, derivatives, bounds, bound_type = "global", s
 
     for (i in 2:n){
 
-      next_point <- next_point_hess(xi, theta, t_flip, d, derivatives, a, b)
+      next_point <- next_point_hess(xi_rec[i-1,], theta_rec[i-1,], t_flip, d, derivatives, a, b)
 
         xi_rec[i, ] <- next_point$xi
         theta_rec[i, ] <- next_point$theta
@@ -244,8 +246,23 @@ skeleton <- function(xi, theta, n, derivatives, bounds, bound_type = "global", s
 }
 
 #####TESTING
+###Cauchy###
 del = function(x){
-  return(2*x/(1+sum(x^2)))
+  return(3*x/(1+sum(x^2)))
 }# max =1
+set.seed(888)
+test=skeleton(c(1,1),c(1,1),100,del,bounds=c(1,1),bound_type="global")
+plot(test$xi,type="l",xlab=expression(xi[1]),ylab=expression(xi[2]),xlim=c(-7,7),ylim=c(-7,7))
+###Multinormal###
+library(MASS)
+n=1000
+set.seed(888)
+data = mvrnorm(n, mu=c(0,0), Sigma=matrix(c(1,0.5,0.5,2),nrow=2))
+grad = function(x){
+  return(x - matrix(c(8/7,-2/7,-2/7,4/7),nrow=2)%*%(apply(data,2,sum)-n*x))
+}
+Q = matrix(c(1000*8/7+1,-1000*2/7,-1000*2/7,1000*4/7+1),nrow=2)
+test2 = skeleton(c(0,0),c(1,1),100,grad,bounds=Q,bound_type="hessian")
+plot(test2$xi,type="l",xlab=expression(xi[1]),ylab=expression(xi[2]),xlim=c(-0.1,0.2),ylim=c(-0.15,0.15))
 
-test=skeleton(c(1,1),c(1,1),10000,del,bounds=c(1,1),bound_type="global")
+test3 = skeleton(c(0,0),c(1,1),100,)

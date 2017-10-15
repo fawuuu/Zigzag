@@ -68,7 +68,23 @@ The strong Markov property ensures that if $\tilde \tau_{i_0}$ is rejected, ther
 
 The easiest possible case is that the intensities $\lambda_i(\xi,\theta)$ are uniformly bounded by a constant, that is there exist $c_i$ with $\sup_{\xi} | \partial_i \Psi(\xi) | < c_i$. Then we can take $M_i = c_i$, and the samples from the $M_i$-clocks are just exponential rate $c_i$. 
 
-[Notes on use in-function here?]
+**Example 1**
+
+Consider for example a 2-dimensional Cauchy distribution, that is the target distribution takes the form
+\[
+\pi(\xi)\propto \frac{1}{(1+\xi^T\xi)^{1.5}}.
+\]
+Then we have
+\[
+\Psi(\xi) = 1.5\log(1+\xi^T\xi)
+\]
+and intensities
+\[
+\lambda_i(\xi,\theta)=(\theta_i\partial_i\Psi(\xi))^+ = \Bigg(\frac{3\theta_i\xi_i}{1+\xi^T\xi}\Bigg)^+.
+\]
+This means that we can run the algorithm using the constant bounds $M_i(t)=1.5$ for $i=1,2$. 
+
+![Zig-Zag sampler with 100 skeleton points for multivariate Cauchy distribution.](D:/Uni/OxWaSP/Module 1/Zigzag/cauchy.jpeg)
 
 #### 2.3.2 Hessian bounds
 
@@ -83,6 +99,40 @@ G(y)&=\inf\{t\ge 0: \int_0^t (a_i+b_i s)^+ds\ge y\}\\
 &=-\frac{a}{b}+\sqrt{\Big(\frac{a}{b}\Big)^2+\frac{2y}{b}},
 \end{align*}
 since taking the positive part means that we are interested in the larger solution of the quadratic equation.
+
+**Example 2**
+
+One setting where this type of bounds applies is Bayesian inference with a Gaussian likelihood. For this problem an analytical solution can be obtained and compared with our simulations.
+
+We are interested in obtaining samples from the posterior
+\[
+\pi(\xi|x_{1:n}) \propto \pi(\xi)\prod_{j=1}^n f(x_j|\xi),
+\]
+where $x_1,...,x_n\in\mathbb{R}^d$ are i.i.d. data generated from $f(x_j|\xi)\sim\mathcal{N}(\xi,\Sigma)$ and $\pi\sim\mathcal{N}(0,\rho^2I)$ a prior on the parameter. Then the negative log density is given by 
+\[
+\Psi(\xi) = \frac{1}{2\rho^2}\xi^T\xi + \frac{1}{2}\sum_{i=1}^n(x_i-\xi)^T\Sigma^{-1}(x_i-\xi),
+\]
+the gradient by
+\[
+\nabla\Psi(\xi) = \frac{1}{\rho^2}\xi - \Sigma^{-1}\Big(\sum_{i=1}^nx_i - n\xi\Big)
+\]
+and the Hessian is
+\[
+H_{\Psi}(\xi) = \frac{1}{\rho^2}I + n\Sigma^{-1}
+\]
+independent of the state $\xi$, so we can choose $Q=H_{\Psi}$. We apply the algorithm with $d=2$, $\rho=1$,
+$\Sigma=
+\begin{pmatrix}
+1 & 0.5\\
+0.5 & 2
+\end{pmatrix}$
+and $n=1000$ datapoints generated from $\mathcal{N}(0,\Sigma)$.
+
+![Zig-Zag sampler with 100 skeleton points for posterior with gaussian likelihood.](D:/Uni/OxWaSP/Module 1/Zigzag/gaussian.jpeg)
+
+Also note that in this case, since the Hessian is constant and equal to the dominating matrix $Q$, the bounds $M_i(t)$ are exact and thus all proposed flip-times are accepted.
+
+If $n$ is large it is generally expensive to evaluate the product $\prod_{j=1}^nf(x_j|\xi)$ (this is not an issue in this case since we would only need to precompute $\sum_{j=1}^nx_j$). The next type of bounds (and also global constant bounds) can be used in a subsampling procedure, avoiding the evaluation of the full likelihood.
 
 #### 2.3.2 Globally uniformly Lipschitz-continuous
 
@@ -103,30 +153,42 @@ Two choices (which will typically affect how good the bounds are) have to be mad
 
 - Choice of $p$: There will typically be a trade-off between the magnitude of $||\xi-\xi^*||_p+t||\theta||_p$ and the constants $C_i$, for which we do not explicitly write the dependence on $p$ for notational simplicity. Without further knowledge, the Euclidean norm ($p=2$) is a natural choice.
 
-## 3. Zig-Zag with subsampling
+**Zig-Zag with subsampling and Example 2 continued**
 
-The Zig-Zag sampler is particularly efficient when the target distribution factorizes (that is $\Psi$ can be written as a sum) and is expensive to evaluate. This often occurs for example in Bayesian inference, when evaluating the posterior distribution involves evaluating the likelihood for all data points $x_1,...,x_n$ and $n$ is large. Assume that we can write
+Consider again the Bayesian posterior from above. Writing the negative log density as 
+\[
+\Psi(\xi) = -\log\pi(\xi) - \sum_{j=1}^n\log f(x_j|\xi)
+\]
+and partial derivatives
+\[
+\partial_i\Psi(\xi)=-\partial_i\log\pi(\xi) - \sum_{j=1}^n\partial_i\log(f(x_j|\xi)).
+\]
+It is shown in (source) that if we can write 
 \[
 \partial_i\Psi(\xi)=\frac{1}{n}\sum_{j=1}^nE_i^j(\xi)
 \]
-for all $i=1,...,d$ and continuous functions $E_i^j$. For example, in a typical Bayesian setting we are interested in the posterior
-\[
-\pi(\xi|x_{1:n})\propto \pi(\xi)L(x_{1:n}|\xi)=\pi(\xi)\prod_{j=1}^nf(x_j|\xi)
-\]
-and thus
-\[
-\partial_i\log\pi(\xi|x_{1:n})=\partial_i\log\pi(\xi) + \sum_{j=1}^n\partial_i\log(f(x_j|\xi)).
-\]
-The intensities $\lambda_i$ defined above can be decomposed into a sum
+for some continuous functions $E_i^j$, then the Zig-Zag process with intensities
 \[
 \lambda_i(\xi,\theta)=\frac{1}{n}\sum_{j=1}^n(\theta_iE_i^j(\xi))^+
 \]
-and the correct flip-time can be obtained via superposition by simulating 
+has the correct target distribution and can be simulated evaluating only on of the $E_i^j$ in each iteration if we have bounds $M_i(t)\ge m_i^j(t) := (\theta_iE_i^j(\xi+\theta t))^+$ for all $j=1,...,n$ and $i=1,...,d$.
 
+This makes subsampling a very efficient method for sampling from posterior distributions, since the likelihood only needs to be evaluated for one data point in each iteration. 
 
+We return to the example with Gaussian likelihoods we can use the Lipschitz bounds (using the Hessian bounds defeats the purpose of subsampling since obtaining bounds $M_i(t)\ge m_i^j(t)$ for all $j=1,...,n$ would actually require the computation of the likelihood for all data points).
 
+First ignore the prior $\pi$ for notational simplicity. Let $p=\infty$. We have to find the Lipschitz constants $C_i$ satisfying
+\[
+|\partial_i n\log f(x_j|\xi)-\partial_i n\log f(x_j|\xi')|\le C_i||\xi-\xi'||_{\infty}
+\]
+for all $j=1,...,n$. Since we have
+\[
+\nabla\log f(x_j|\xi) = \Sigma^{-1}(x_j-\xi)
+\]
+the Lipschitz condition is satisfied for $C_i=\frac{1}{\rho^2} + n||\Sigma^{-1}||_{\infty}$ by submultiplicativity (the term $\frac{1}{\rho^2}$ is due to the prior).
 
-
-
-
-
+In this case we can exactly compute the posterior mode and choose the reference point 
+\[
+\xi^* = \Big(\frac{1}{n\rho^2}I+\Sigma^{-1}\Big)^{-1}\Sigma^{-1}\sum_{j=1}^{n}x_j,
+\]
+which requires a one-off cost of $O(n)$. 
