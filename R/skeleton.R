@@ -252,7 +252,24 @@ del = function(x){
 }# max =1
 set.seed(888)
 test=skeleton(c(1,1),c(1,1),100,del,bounds=c(1,1),bound_type="global")
-plot(test$xi,type="l",xlab=expression(xi[1]),ylab=expression(xi[2]),xlim=c(-7,7),ylim=c(-7,7))
+library(graphics)
+z=matrix(0,nrow=length(seq(-7.5,7.5,0.1)),ncol=length(seq(-7.5,7.5,0.1)))
+for(i in 1:length(seq(-7.5,7.5,0.1))){
+  for(j in 1:length(seq(-7.5,7.5,0.1))){
+    z[i,j] = log(1/(1+sum(c(seq(-7.5,7.5,0.1)[i],seq(-7.5,7.5,0.1)[j])^2))^(1.5))
+  }
+}
+
+par(mfrow=c(1,1),mai=c(0.3,0.7,0.1,0.1),oma=c(1,0,0,0))
+filled.contour(
+  x = seq(-7.5,7.5,length.out=nrow(z)),
+  y = seq(-7.5,7.5,length.out=ncol(z)),
+  z = z,
+  levels = seq(-7.5,0,0.5),
+  plot.axes={lines(test$xi,cex=0.5); axis(1, seq(-7,7,2)); axis(2, seq(-7,7,2)); box()}
+)
+
+lines(test$xi,type="l",xlab=expression(xi[1]),ylab=expression(xi[2]),xlim=c(-7,7),ylim=c(-7,7))
 ###Multinormal###
 library(MASS)
 n=1000
@@ -264,5 +281,20 @@ grad = function(x){
 Q = matrix(c(1000*8/7+1,-1000*2/7,-1000*2/7,1000*4/7+1),nrow=2)
 test2 = skeleton(c(0,0),c(1,1),100,grad,bounds=Q,bound_type="hessian")
 plot(test2$xi,type="l",xlab=expression(xi[1]),ylab=expression(xi[2]),xlim=c(-0.1,0.2),ylim=c(-0.15,0.15))
-
-test3 = skeleton(c(0,0),c(1,1),100,)
+library(mvtnorm)
+post = function(x){
+  return(dmvnorm(x,log=T)+sum(dmvnorm(data,mean=x,sigma=matrix(c(1,0.5,0.5,2),nrow=2),log=T)))
+}
+z=matrix(0,nrow=length(seq(-0.1,0.2,0.01)),ncol=length(seq(-0.15,0.15,0.01)))
+for(i in 1:length(seq(-0.1,0.2,0.01))){
+  for(j in 1:length(seq(-0.15,0.15,0.01))){
+    z[i,j] = post(c(seq(-0.1,0.2,0.01)[i],seq(-0.15,0.15,0.01)[j]))
+  }
+}
+filled.contour(
+  x = seq(-0.1,0.2,length.out=nrow(z)),
+  y = seq(-0.15,0.15,length.out=ncol(z)),
+  z = z,
+  levels = seq(-3120,-3080,5),
+  plot.axes={lines(test2$xi,cex=0.5); axis(1, seq(-0.1,0.2,0.05)); axis(2, c(-0.15,-0.1,-0.05,0,0.05,0.1,0.15)); box()}
+)

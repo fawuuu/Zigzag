@@ -2,7 +2,7 @@
 title: "Bayesian inference with the Zig-zag process"
 author: "Fan Wu & James Hodgson"
 date: "`r Sys.Date()`"
-output: rmarkdown::html_vignette
+output: pdf_document
 header-includes:
  - \usepackage{amssymb}
 vignette: >
@@ -84,7 +84,7 @@ and intensities
 \]
 This means that we can run the algorithm using the constant bounds $M_i(t)=1.5$ for $i=1,2$. 
 
-![Zig-Zag sampler with 100 skeleton points for multivariate Cauchy distribution.](D:/Uni/OxWaSP/Module 1/Zigzag/cauchy.jpeg)
+![Zig-Zag sampler with 100 skeleton points for multivariate Cauchy distribution; log-density up to normalizing constant.](D:/Uni/OxWaSP/Module 1/Zigzag/cauchy.jpeg)
 
 #### 2.3.2 Hessian bounds
 
@@ -128,7 +128,7 @@ $\Sigma=
 \end{pmatrix}$
 and $n=1000$ datapoints generated from $\mathcal{N}(0,\Sigma)$.
 
-![Zig-Zag sampler with 100 skeleton points for posterior with gaussian likelihood.](D:/Uni/OxWaSP/Module 1/Zigzag/gaussian.jpeg)
+![Zig-Zag sampler with 100 skeleton points for posterior with gaussian likelihood; log-density up to normalizing constant.](D:/Uni/OxWaSP/Module 1/Zigzag/gaussian.jpeg)
 
 Also note that in this case, since the Hessian is constant and equal to the dominating matrix $Q$, the bounds $M_i(t)$ are exact and thus all proposed flip-times are accepted.
 
@@ -192,3 +192,10 @@ In this case we can exactly compute the posterior mode and choose the reference 
 \xi^* = \Big(\frac{1}{n\rho^2}I+\Sigma^{-1}\Big)^{-1}\Sigma^{-1}\sum_{j=1}^{n}x_j,
 \]
 which requires a one-off cost of $O(n)$. 
+
+$~$
+
+**References**
+
+Bierkens, J., Fearnhead, P., and Roberts, G. (2016). The Zig-Zag Process and Super-Efficient
+Sampling for Bayesian Analysis of Big Data
