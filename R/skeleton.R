@@ -194,7 +194,7 @@ skeleton <- function(xi, theta, n, derivatives, bounds, bound_type = "global", s
 
     for (i in 2:n){
 
-    next_point <- next_point_global(xi_rec[i-1,], theta_rec[i-1,], t_flip[i-1], d, derivatives, bounds, subsample)
+    next_point <- next_point_global(xi_rec[i-1,], theta_rec[i-1,], t_flip_rec[i-1], d, derivatives, bounds, subsample)
 
         xi_rec[i, ] <- next_point$xi
         theta_rec[i, ] <- next_point$theta
@@ -214,7 +214,7 @@ skeleton <- function(xi, theta, n, derivatives, bounds, bound_type = "global", s
 
     for (i in 2:n){
 
-      next_point <- next_point_hess(xi_rec[i-1,], theta_rec[i-1,], t_flip, d, derivatives, a, b)
+      next_point <- next_point_hess(xi_rec[i-1,], theta_rec[i-1,], t_flip_rec[i-1], d, derivatives, a, b)
 
         xi_rec[i, ] <- next_point$xi
         theta_rec[i, ] <- next_point$theta
@@ -233,7 +233,7 @@ skeleton <- function(xi, theta, n, derivatives, bounds, bound_type = "global", s
 
     for (i in 2:n){
 
-      next_point <- next_point_lipschitz(xi_rec[i-1, ], theta_rec[i-1, ], t_flip[i-1], d, derivatives, bounds, xi_ref, derivatives_ref, p, subsample)
+      next_point <- next_point_lipschitz(xi_rec[i-1, ], theta_rec[i-1, ], t_flip_rec[i-1], d, derivatives, bounds, xi_ref, derivatives_ref, p, subsample)
 
       xi_rec[i, ] <- next_point$xi
       theta_rec[i, ] <- next_point$theta
@@ -245,13 +245,70 @@ skeleton <- function(xi, theta, n, derivatives, bounds, bound_type = "global", s
   return(list(xi=xi_rec, theta=theta_rec, t_flip=t_flip_rec))
 }
 
+#' gen_sample
+#'
+#' Function which generates discrete samples from continuous sample path
+#'
+#' @param xi an vector of skeleton points
+#' @param theta a vector of directions
+#' @param t total time of the trajectory
+#' @param B number of points to generate
+#'
+gen_sample = function(xi, theta, t_flip, B){
+  sample = matrix(0, nrow = B, ncol = ncol(xi))
+  for(i in 1:B){
+    ind = max(which(t_flip<(i*max(t_flip)/B)))
+    sample[i,] = xi[ind,] + ((i*max(t_flip)/B)-t_flip[ind])*theta[ind,]
+  }
+  return(sample)
+}
+
+#' integrate
+#'
+#' Function which estimates integral of function using discrete samples
+#'
+#' @param f a function to integrate
+#' @param xi an vector of skeleton points
+#' @param theta a vector of directions
+#' @param t total time of the trajectory
+#' @param B number of points to generate
+#'
+integrate = function(f, xi, theta, t_flip, B){
+  return(mean(apply(gen_sample(xi, theta, t_flip, B), 1, f)))
+}
+
+#' ESS
+#'
+#' Function which estimates the effective sample size for a function h
+#'
+#' @param h function h taking real values
+#' @param xi an vector of skeleton points
+#' @param theta a vector of directions
+#' @param t total time of the trajectory
+#' @param B number of batches
+#' @param num number of samples to use per batch
+#'
+ESS = function(h, xi, theta, t_flip, B, num = round(nrow(xi)/B)){
+  y = numeric(B)
+  tau = max(t_flip)
+  samples = gen_sample(xi, theta, t_flip, B*num)
+  for(i in 1:B){
+    y[i] = sqrt(tau/B) * mean(apply(samples[((i-1)*num+1):(i*num),], 1, h))
+  }
+  var_as = var(y)
+  mean_h = mean(apply(samples, 1, h))/tau
+  var_h = mean(apply(samples, 1, h)^2)/tau
+  return(tau*(var_h-mean_h^2)/var_as)
+}
+
+
 #####TESTING
 ###Cauchy###
 del = function(x){
   return(3*x/(1+sum(x^2)))
 }# max =1
 set.seed(888)
-test=skeleton(c(1,1),c(1,1),100,del,bounds=c(1,1),bound_type="global")
+test=skeleton(c(1,1),c(1,1),10000,del,bounds=c(1,1),bound_type="global")
 library(graphics)
 z=matrix(0,nrow=length(seq(-7.5,7.5,0.1)),ncol=length(seq(-7.5,7.5,0.1)))
 for(i in 1:length(seq(-7.5,7.5,0.1))){
@@ -279,7 +336,7 @@ grad = function(x){
   return(x - matrix(c(8/7,-2/7,-2/7,4/7),nrow=2)%*%(apply(data,2,sum)-n*x))
 }
 Q = matrix(c(1000*8/7+1,-1000*2/7,-1000*2/7,1000*4/7+1),nrow=2)
-test2 = skeleton(c(0,0),c(1,1),100,grad,bounds=Q,bound_type="hessian")
+test2 = skeleton(c(0,0),c(1,1),10000,grad,bounds=Q,bound_type="hessian")
 plot(test2$xi,type="l",xlab=expression(xi[1]),ylab=expression(xi[2]),xlim=c(-0.1,0.2),ylim=c(-0.15,0.15))
 library(mvtnorm)
 post = function(x){
