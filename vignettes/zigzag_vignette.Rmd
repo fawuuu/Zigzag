@@ -11,141 +11,112 @@ vignette: >
   %\VignetteEncoding{UTF-8}
 ---
 
-# 1. Introduction
+## 1. Introduction
 
-The Zig-zag process can be used as an alternative to Markov Chain Monte Carlo to sample from a posterior distribution $\pi$. The idea is very simple: supposing the posterior to be over $d$-dimensions, imagine we place a particle at arbitrary position $\xi_0$ in $\mathbb{R}^d$, and set it travelling at speed $1$ in direction $\theta_0 \in \{ \pm 1 \}^d$. The only change in the motion of the particle we allow is that at certain times $T$, a single element of its current direction of travel $\theta(T^-)$ flips sign: for some $i$, $\theta_i(T) \leftarrow - \theta_i(T^-)$. That is, at certain times the particle instantaneously changes direction while mantaining its speed - so its overall trajectory is piecewise linear. 
+### 1.1 Zig-zag sampling
 
-[Picture]
+The Zig-zag process can be used as an alternative to Markov Chain Monte Carlo to sample from a posterior distribution $\pi$. Its key properties are:
 
-The way these flip-times are chosen is as follows: let $t$ denote the time elapsed since the last flip (or since the beginning of the process, if no flips have yet occurred). Let the particle's location at $t$ be $\xi(t)$, and its direction $\theta$ (which is constant between flips). With each index $i \in \{1,\dots,d \}$ is associated a clock ticking at rate $\lambda_i(\xi(t),\theta)$, in the sense that
-\begin{eqnarray}
-\mathbb{P}( \text{clock} \ i \ \text{has} \ \textbf{not} \ \text{rung by time} \ t) = \exp( - \int_0^s \lambda_i(\xi(s),\theta) \ ds).
-\end{eqnarray}
-If clock $i$ is the first to ring, at time $t=T$, then index $\theta_i$ flips at $T$. The particle changes direction, we reset $t \leftarrow 0$ and start the clocks again. The hope is that if the $\lambda_i$ are chosen correctly, then the process is ergodic with invariant distribution $\pi$ over $\mathbb{R}^d$. 
+* It is non-reversible, unlike traditional MCMC, meaning it may converge faster 
+* It can often be applied in a sub-sampling form which still targets the true posterior, meaning it scales well with no loss of accuracy (this has not yet been worked out for MCMC)
+* It seems likely to sometimes scale $\textit{super-efficiently}$, in that the cost of getting independent posterior samples (after convergence) does not depend on the size of the data 
 
-Happily, it turns out that under mild conditions on $\pi$, this is possible: writing $\pi(\xi) = 1/Z \cdot \exp( - \Psi(\xi))$ for a normalising constant $Z$, and taking 
+### 1.2 Background
+
+The idea is very simple: supposing the posterior to be over $d$ dimensions, imagine we place a particle at arbitrary position $\xi_0 \in \mathbb{R}^d$ and set it travelling at speed $1$ in direction $\theta_0 \in \{ \pm 1 \}^d$. The only change in the motion of the particle we allow is that at certain times $T$, a single element of its current direction of travel $\theta(T^-)$ flips sign: for some $i$, $\theta_i(T) \leftarrow - \theta_i(T^-)$. That is, at certain times the particle instantaneously changes direction while mantaining its speed - so its overall trajectory is piecewise linear. 
+
+The way these flip-times are chosen is as follows: let $t$ denote the time elapsed since the last flip (or since the beginning of the process, if no flips have yet occurred). Let the particle's location at $t$ be $\xi(t)$, and its direction $\theta$ (which is constant between flips). With each index $i \in \{1,\dots,d \}$ is associated a clock ticking at rate $\lambda_i(\xi(t),\theta)$, in the sense that if $\tau_i$ is the time until clock $i$ rings,
+\[\mathbb{P}( \tau_i > t) = \exp( - \int_0^t \lambda_i(\xi(s),\theta) \ ds).\]
+If clock $i$ is the first to ring, at time $t=T$, then index $\theta_i$ flips at $T$. The particle changes direction, we reset $t \leftarrow 0$ and start the clocks again. The hope is that if the intensities $\lambda_i$ are chosen correctly, then the process is ergodic with invariant distribution $\pi$ over $\mathbb{R}^d$. 
+
+Happily, it turns out that under mild conditions on $\pi$ (including that it is continuously differentiable and everywhere positive), this is possible: writing $\pi(\xi) = 1/Z \cdot \exp( - \Psi(\xi))$ for a normalising constant $Z$, and taking 
 \[\lambda_i(\xi, \theta) = (\theta_i \partial_i \Psi(\xi))^+,\]
 it can be shown that the process has invariant distribution $\pi$, and ergodic averages converge correctly. Moreover, it also satisfies the strong Markov property.
 
-Note that a Zig-zag process is totally specified by listing the flip-times $\{T^i\}_{i=1}^\infty$, along with the positions $\{\Xi^i\}_{i=1}^\infty$ at which the flips occur occur and the directions $\{\Theta^i\}_{i=1}^\infty$ in which the process moves immediately after the flips. Call $\{(\Xi^i, \Theta^i, T^i)\}_{i=1}^\infty$ the $\textit{skeleton}$ of the process. Generating the (truncated) process is then essentially equivalent to generating a sequence of the skeleton. The only real difficulty in doing this is sampling from the clocks to find the flip-times. 
+A Zig-zag process is totally specified by listing the flip-times $\{T^i\}_{i=1}^\infty$, along with the positions $\{\Xi^i\}_{i=1}^\infty$ at which the flips occur occur and the directions $\{\Theta^i\}_{i=1}^\infty$ in which the process moves immediately after the flips. Call $\{(\Xi^i, \Theta^i, T^i)\}_{i=1}^\infty$ the $\textit{skeleton}$ of the process. Generating the (truncated) process is then essentially equivalent to generating a sequence of the skeleton. The only real difficulty in doing this is sampling from the clocks to find the flip-times. 
 
 ----------
-# 2. Implementation
 
-## 2.1 Basic algorithm
+## 2. Implementation
 
-Following the intuition given above the algorithm proceeds as follows for a target distribution $\pi(\xi)\propto\exp(-\Psi(\xi))$, $\xi \in \mathbb{R}^d$ and some starting values $\xi^{(0)}, \theta^{(0)}$:
+### 2.1 Basic algorithm
 
-For $k=1,2,...$ do:
+Following the above, a prototype algorithm to generate the skeleton of a Zig-zag process targeting the distribution $\pi(\xi)\propto\exp(-\Psi(\xi))$ proceeds as follows. Given initial values $\Xi^{(0)}, \Theta^{(0)}$, for $k=1,2,...$ do:
 
 1) Draw $\tau_1$,...,$\tau_d$ such that 
-\[ \mathbb{P}(\tau_i\ge t)=\exp(-\int_0^t \lambda_i(\xi^{(k-1)}+\theta^{(k-1)}s,\theta^{(k-1)})ds) \]
+\[ 
+\mathbb{P}(\tau_i \ge t)=\exp(-\int_0^t \lambda_i(\Xi^{(k-1)} + s \Theta^{(k-1)},\Theta^{(k-1)})ds) 
+\]
 2) Let $i_0=\operatorname{argmin}(\tau_1,...,\tau_d)$ and $\tau=\tau_{i_0}$
 3) Set $\Xi^{(k)}=\Xi^{(k-1)}+\tau\Theta^{(k-1)}$ and $\Theta^{(k)}_i=\Theta^{(k-1)}_i$ for $i\neq i_0$, $\Theta^{(k)}_{i_0}=-\Theta^{(k-1)}_{i_0}$  
 
-Drawing the first arrival time of an inhomogenous Poisson Process is generally not easy. One way to do this is using a thinning approach.
+Drawing the first arrival time of an inhomogenous Poisson process is generally not easy. We'll turn to how this is done next.
 
-## 2.2 Sampling flip-times
+### 2.2 Sampling flip-times
 
-Consider a linear sub-path of the process starting from the skeleton point $(\Xi^k,\Theta^k,T^k)$. There are $d$ clocks simultaneously ticking at rates $\lambda_i, \ i=1,\dots,d$. Let $\tau_i$ be the time from $T^k$ until clock $i$ rings, and let $i_0$ be the first clock to ring. We're interested in finding $\tau_{i_0}$, which is the time until the next flip $T^{k+1}$. It is not clear how to sample directly from the distributions of the $\tau_i$; however, sampling from similarly specified distributions such as 
-\[ \mathbb{P}( \tau > t) = \exp(- \int_0^t M(s) ds) \] where $M(t)$ is a very simple function, say constant or linear, is easy: 
+Consider a single linear sub-path of the process starting from the skeleton point $(\Xi^k,\Theta^k,T^k)$. It is not clear how to sample directly from the distributions of the $\tau_i$; however, sampling from similarly specified distributions such as 
+\[ \mathbb{P}( \tau > t) = \exp(- \int_0^t M(s) ds) \] where $M(t)$ is "simple" function (in the sense that step 2 below can be carried out) is easy: 
 
-1) calculate $\int_0^t M(s) \ ds$, which is quadratic or linear
-2) find $\textit{explicitly}$ the generalised inverse $G(y) = \inf \{ t \geq 0: \int_0^t M(s) \ ds \geq y \}$ 
+1) calculate $\int_0^t M(s) \ ds$
+2) find $\textit{explicitly}$ the generalised inverse $G(y) = \inf \{ t \geq 0: \int_0^t M(s) \ ds \geq y \}$
 3) sample $\tau = G( - \log U)$ for $U \sim U[0,1]$.  
 
-This idea can be used to sample exactly from the true distributions of the $\tau_i$ by a thinning procedure analogous to the usual thinning for homogeneous Poisson processes. Suppose we can find simple bounds $M_i(t)$ with $M_i(t) \geq m_i(t) := \lambda_i(\xi(t), \Theta)$. Then 
+This idea can be used to sample exactly from the true distribution of the first clock $\tau_{i_0}$ directly, by a thinning procedure analogous to the usual thinning for homogeneous Poisson processes. Suppose we can find simple bounds $M_i(t)$ with $M_i(t) \geq m_i(t) := \lambda_i(\xi(t), \Theta)$. Then 
 
-1) sample $\tilde \tau_i$ as clocks with rates $M_i$
+1) sample $\tilde \tau_i$ as clocks with rates $M_i$, as described above
 2) find $i_0 = \arg \min_i \tilde \tau_i$
 3) accept $\tilde \tau_{i_0}$ as the time until the next flip with probability $m_{i_0} (\tilde \tau_{i_0})/M_{i_0} (\tilde \tau_{i_0})$. 
 
-The strong Markov property ensures that if $\tilde \tau_{i_0}$ is rejected, there is no need to resample; we can just continue the process from the non-skeleton point $(\Xi^k + \tilde \tau_{i_0} \Theta^k,\Theta^k,T^k + \tilde \tau_{i_0})$.
+The strong Markov property ensures that if $\tilde \tau_{i_0}$ is rejected, there is no need to resample; we can just continue the process from the non-skeleton point $(\Xi^k + \tilde \tau_{i_0} \Theta^k,\Theta^k,T^k + \tilde \tau_{i_0})$. This completes the full procedure for generating the skeleton, provided the bounds $M_i$ are available.
 
-## 2.3 Realistic bounds
+### 2.3 Useful bounds
 
 #### 2.3.1 Global constant bounds
 
-The easiest possible case is that the intensities $\lambda_i(\xi,\theta)$ are uniformly bounded by a constant, that is there exist $c_i$ with $\sup_{\xi} | \partial_i \Psi(\xi) | < c_i$. Then we can take $M_i = c_i$, and the samples from the $M_i$-clocks are just exponential rate $c_i$. 
+The easiest possible case is that the intensities $\lambda_i(\xi,\theta)$ are uniformly bounded by a constant, that is there exist $c_i$ with $\sup_{\xi} | \partial_i \Psi(\xi) | < c_i$. Then we can take $M_i = c_i$, and the samples from the $M_i$-clocks are just exponential rate $c_i$, which pose no difficulty to simulate.
 
 **Example 1**
 
-Consider for example a 2-dimensional Cauchy distribution, that is the target distribution takes the form
-\[
-\pi(\xi)\propto \frac{1}{(1+\xi^T\xi)^{1.5}}.
-\]
-Then we have
-\[
-\Psi(\xi) = 1.5\log(1+\xi^T\xi)
-\]
-and intensities
-\[
-\lambda_i(\xi,\theta)=(\theta_i\partial_i\Psi(\xi))^+ = \Bigg(\frac{3\theta_i\xi_i}{1+\xi^T\xi}\Bigg)^+.
-\]
-This means that we can run the algorithm using the constant bounds $M_i(t)=1.5$ for $i=1,2$. 
+Consider targetting a 2-dimensional Cauchy distribution, so $\pi(\xi)\propto (1+\xi^T\xi)^{-1.5}$. The required intensities are $(\theta_i\partial_i\Psi(\xi))^+ = (3 \theta_i \xi_i/(1+\xi^T\xi ) )^+$, 
+which means we can run the algorithm using the constant bounds $M_i(t)=1.5$ for $i=1,2$. 
 
-![Zig-Zag sampler with 100 skeleton points for multivariate Cauchy distribution; log-density up to normalizing constant.](D:/Uni/OxWaSP/Module 1/Zigzag/cauchy.jpeg)
+![Zig-Zag sampler with 100 skeleton points for multivariate Cauchy distribution.](/homes/hodgson/My Documents/Proj1/Zigzag/cauchy.jpeg)
 
 #### 2.3.2 Hessian bounds
 
-A more general and useful case is that we can find a positive-definite $Q$ which dominates the Hessian of $\Psi$ in the sense that $Q \succcurlyeq H_\Psi(\xi)$. In this case, it can be shown that there exist constants $a_i$ and $b_i$ such that $m_i(t) \leq (a_i + b_i t)^+ := M_i(t)$. In particular, we have
+A more general and useful case is that we can find a positive-definite $Q$ which $\textit{dominates}$ the Hessian of $\Psi$, in the sense that $Q \succcurlyeq H_\Psi(\xi)$. In this case, it is easy to find constants $a_i$ and $b_i$ such that $m_i(t) \leq (a_i + b_i t)^+ := M_i(t)$:
 \[
 \theta_i\partial_i\Psi(\xi+\theta t) = \theta_i\partial_i\Psi(\xi)+\int_0^t \sum_{j=1}^d\partial_i\partial_j\Psi(\xi+\theta s)\theta_jds \le \underbrace{\theta_i\partial_i\Psi(\xi)}_\text{$a_i$} + \underbrace{\int_0^t ||Qe_i||_2||\theta||_2 ds}_\text{$b_i$}.
 \]
 The generalized inverse can then be computed as 
-\begin{align*}
-G(y)&=\inf\{t\ge 0: \int_0^t (a_i+b_i s)^+ds\ge y\}\\
-&=\max(t\ge 0:at+\frac{1}{2}bt^2=y)\\
-&=-\frac{a}{b}+\sqrt{\Big(\frac{a}{b}\Big)^2+\frac{2y}{b}},
-\end{align*}
-since taking the positive part means that we are interested in the larger solution of the quadratic equation.
+\[
+G(y)=-(a/b)+\sqrt{(a/b)^2+(2y/b)}.
+\]
 
 **Example 2**
 
-One setting where this type of bounds applies is Bayesian inference with a Gaussian likelihood. For this problem an analytical solution can be obtained and compared with our simulations.
-
-We are interested in obtaining samples from the posterior
+Suppose we want samples from the posterior $\pi(\xi|x_{1:n})$, where $x_1,...,x_n\in\mathbb{R}^d$ are i.i.d. data generated from $f(x_j|\xi)\sim\mathcal{N}(\xi,\Sigma)$, and $\pi\sim\mathcal{N}(0,\rho^2I)$ is a prior on the parameter. The Hessian of the negative log density is
 \[
-\pi(\xi|x_{1:n}) \propto \pi(\xi)\prod_{j=1}^n f(x_j|\xi),
-\]
-where $x_1,...,x_n\in\mathbb{R}^d$ are i.i.d. data generated from $f(x_j|\xi)\sim\mathcal{N}(\xi,\Sigma)$ and $\pi\sim\mathcal{N}(0,\rho^2I)$ a prior on the parameter. Then the negative log density is given by 
-\[
-\Psi(\xi) = \frac{1}{2\rho^2}\xi^T\xi + \frac{1}{2}\sum_{i=1}^n(x_i-\xi)^T\Sigma^{-1}(x_i-\xi),
-\]
-the gradient by
-\[
-\nabla\Psi(\xi) = \frac{1}{\rho^2}\xi - \Sigma^{-1}\Big(\sum_{i=1}^nx_i - n\xi\Big)
-\]
-and the Hessian is
-\[
-H_{\Psi}(\xi) = \frac{1}{\rho^2}I + n\Sigma^{-1}
+H_{\Psi}(\xi) = (1/\rho^2) I + n\Sigma^{-1}
 \]
 independent of the state $\xi$, so we can choose $Q=H_{\Psi}$. We apply the algorithm with $d=2$, $\rho=1$,
-$\Sigma=
-\begin{pmatrix}
-1 & 0.5\\
-0.5 & 2
-\end{pmatrix}$
-and $n=1000$ datapoints generated from $\mathcal{N}(0,\Sigma)$.
+$\Sigma_{11} = 1, \ \Sigma_{12} = \Sigma_{21} = 1/2, \ \Sigma_{22} = 2$, and $n=1000$ datapoints generated from $\mathcal{N}(0,\Sigma)$.
 
-![Zig-Zag sampler with 100 skeleton points for posterior with gaussian likelihood; log-density up to normalizing constant.](D:/Uni/OxWaSP/Module 1/Zigzag/gaussian.jpeg)
+![Zig-Zag sampler with 100 skeleton points for posterior with gaussian likelihood; log-density up to normalizing constant.](/homes/hodgson/My Documents/Proj1/Zigzag/gaussian.jpeg)
 
-Also note that in this case, since the Hessian is constant and equal to the dominating matrix $Q$, the bounds $M_i(t)$ are exact and thus all proposed flip-times are accepted.
+If $n$ is large it is generally expensive to evaluate the product $\prod_{j=1}^nf(x_j|\xi)$ (this is not an issue in this case since we would only need to precompute $\sum_{j} x_j$). The next type of bound, as well as the global constant bounds, can be used in a sub-sampling procedure which avoids the evaluation of the full likelihood, as we'll see next.
 
-If $n$ is large it is generally expensive to evaluate the product $\prod_{j=1}^nf(x_j|\xi)$ (this is not an issue in this case since we would only need to precompute $\sum_{j=1}^nx_j$). The next type of bounds (and also global constant bounds) can be used in a subsampling procedure, avoiding the evaluation of the full likelihood.
+#### 2.3.3 Lipschitz bounds
 
-#### 2.3.2 Globally uniformly Lipschitz-continuous
-
-The flip times can also be sampled easily if the partial derivatives of $\Psi$ are globally and uniformly Lipschitz continuous, that is 
+The flip times can also be sampled easily if the partial derivatives of $\Psi$ are globally and uniformly Lipschitz continuous, that is if there exist $p \in [1, \infty]$ and constants $C_i \geq 0$ such that
 \[
 |\partial_i\Psi(\xi)-\partial_i\Psi(\xi')|\le C_i||\xi-\xi'||_p
 \]
-for all $i=1,...,d$, $\xi,\xi'\in \mathbb{R}^d$ and some $p\in [1,\infty]$ and constants $C_i\ge 0$.
-A short computation shows that then
+for all $i=1,...,d$, and for every $\xi,\xi'\in \mathbb{R}^d$. A short computation then shows that
 \[
 m_i(t)\le (\theta_i\partial_i\Psi(\xi^*))^++C_i(||\xi-\xi^*||_p+t||\theta||_p)=:M_i(t)
 \]
-holds for any reference point $\xi^*\in \mathbb{R}^d$. We can use these bounds to sample to flip-times the same way as in the case of a Hessian bound.
+for any reference point $\xi^*$. We can use these bounds to sample to flip-times the same way as in the case of a Hessian bound.
 
 Two choices (which will typically affect how good the bounds are) have to be made:
 
@@ -153,45 +124,78 @@ Two choices (which will typically affect how good the bounds are) have to be mad
 
 - Choice of $p$: There will typically be a trade-off between the magnitude of $||\xi-\xi^*||_p+t||\theta||_p$ and the constants $C_i$, for which we do not explicitly write the dependence on $p$ for notational simplicity. Without further knowledge, the Euclidean norm ($p=2$) is a natural choice.
 
-**Zig-Zag with subsampling and Example 2 continued**
+--------------------
 
-Consider again the Bayesian posterior from above. Writing the negative log density as 
-\[
-\Psi(\xi) = -\log\pi(\xi) - \sum_{j=1}^n\log f(x_j|\xi)
-\]
-and partial derivatives
-\[
-\partial_i\Psi(\xi)=-\partial_i\log\pi(\xi) - \sum_{j=1}^n\partial_i\log(f(x_j|\xi)).
-\]
-It is shown in (source) that if we can write 
+## 3. Zig-Zag with sub-sampling 
+
+Suppose that we can write 
 \[
 \partial_i\Psi(\xi)=\frac{1}{n}\sum_{j=1}^nE_i^j(\xi)
 \]
-for some continuous functions $E_i^j$, then the Zig-Zag process with intensities
+for some continuous $E_i^j$ (as we can for an appropriate Bayesian posterior, for example). Then the Zig-Zag process with intensities
 \[
 \lambda_i(\xi,\theta)=\frac{1}{n}\sum_{j=1}^n(\theta_iE_i^j(\xi))^+
 \]
-has the correct target distribution and can be simulated evaluating only on of the $E_i^j$ in each iteration if we have bounds $M_i(t)\ge m_i^j(t) := (\theta_iE_i^j(\xi+\theta t))^+$ for all $j=1,...,n$ and $i=1,...,d$.
+has the correct target distribution; moreover, if we have bounds 
+\[M_i(t)\ge m_i^j(t) := (\theta_iE_i^j(\xi+\theta t))^+ \] 
+for all $j=1,...,n$, the process can be simulated by evaluating only $\textbf{one}$ of the $E_i^j$ in each iteration. This makes subsampling a very efficient method for sampling from posterior distributions, since the likelihood only needs to be evaluated for one data point in each iteration. 
 
-This makes subsampling a very efficient method for sampling from posterior distributions, since the likelihood only needs to be evaluated for one data point in each iteration. 
+**Example 2 (continued)**
 
-We return to the example with Gaussian likelihoods we can use the Lipschitz bounds (using the Hessian bounds defeats the purpose of subsampling since obtaining bounds $M_i(t)\ge m_i^j(t)$ for all $j=1,...,n$ would actually require the computation of the likelihood for all data points).
-
-First ignore the prior $\pi$ for notational simplicity. Let $p=\infty$. We have to find the Lipschitz constants $C_i$ satisfying
-\[
-|\partial_i n\log f(x_j|\xi)-\partial_i n\log f(x_j|\xi')|\le C_i||\xi-\xi'||_{\infty}
-\]
-for all $j=1,...,n$. Since we have
+Returning to the Gaussian likelihoods, we can use the Lipschitz bounds (using the Hessian bounds defeats the purpose of sub-sampling, since obtaining bounds $M_i(t)\ge m_i^j(t)$ for all $j=1,...,n$ would actually require the computation of the likelihood for all data points). Ignore the prior for notational simplicity, and take $p=\infty$. Since
 \[
 \nabla\log f(x_j|\xi) = \Sigma^{-1}(x_j-\xi)
 \]
-the Lipschitz condition is satisfied for $C_i=\frac{1}{\rho^2} + n||\Sigma^{-1}||_{\infty}$ by submultiplicativity (the term $\frac{1}{\rho^2}$ is due to the prior).
-
-In this case we can exactly compute the posterior mode and choose the reference point 
+the Lipschitz condition is satisfied for $C_i=1/\rho^2 + n||\Sigma^{-1}||_{\infty}$ by submultiplicativity (the term $1/\rho^2$ is due to the prior). We can exactly compute the posterior mode and choose the reference point 
 \[
 \xi^* = \Big(\frac{1}{n\rho^2}I+\Sigma^{-1}\Big)^{-1}\Sigma^{-1}\sum_{j=1}^{n}x_j,
 \]
 which requires a one-off cost of $O(n)$. 
+
+## 4. Sampling and ergodic averages
+
+In this section we'll look at how to turn the skeleton into something useful for posterior inference.
+
+### 4.1 Sampling
+
+Given a skeleton $\{(\Xi^i, \Theta^i, T^i)\}_{i=1}^N$, if we want $k$ samples from $\pi$ we can just sample from the Zig-zag process at times $m \cdot T^N / k$, $m=1,\dots,k$. Importantly, the skeleton points themselves are $\textit{not}$ samples from $\pi$ - they are obviously biased towards the tails in every direction.
+
+###4.2 Ergodic averages
+
+One way to estimate ergodic averages is using samples $\xi_i$ obtained as above, and estimating 
+\[ \widehat{\pi f} = \frac{1}{m} \sum_{i=1}^m f(\xi_i). \]
+
+Alternatively, to avoid an arbitrary choice of sample size, we can use continuous time ergodicity to estimate
+
+\[ \widehat{\pi f} = \frac{1}{T^N} \int_0^{T^N} f(\xi(s)) \ ds =  \frac{1}{T^N} \sum_{i=0}^{k-1} \int_{T^{i}}^{T^{i+1}} f(\Xi^i + \Theta^i(s - T^i)) \ ds. \]
+
+The integrals can be caluclated explicitly if $f$ is of a nice form, or else estimated numerically by any common method. 
+
+## 5. Scaling 
+
+In this section we appeal to central limit theorem-type results to compare the costs of producing new skeleton samples at equilibrium for the vanilla and sub-sampling ("mango and passion fruit"?) versions of the Zig-zag sampler. The key point is that Zig-zag with sub-sampling is heuristically super-efficient.
+
+### 5.1 Basic Zig-zag
+
+Let $\hat \xi$ be the MLE for $\xi$ for the model with i.i.d. data $x_1,\dots,x_n \sim f(\cdot| \xi_0)$; so $\Psi(\xi) = - \sum_j \log f(x_j|\xi)$. For $\xi$ near to $\hat \xi$, after Taylor expanding, putting $\phi = \sqrt{n}(\xi - \hat \xi)$, and rescaling time by $\sqrt{n}$ so that the speed of the process remains $1$, we find that the intensities are
+\[ \lambda_i( \phi, \theta) = - \Big( \frac{1}{n} \sum_j \sum_k \partial_i \partial_k \log f(x_j| \hat \xi) \phi_k \Big)^+ + O(n^{-1/2}).\]
+Taking $n \to \infty$, it can be shown that $\lambda_i( \phi, \theta) \to (\theta_i \cdot [i(\xi_0)\phi]_i)^+$ almost surely, where $i(\xi_0)$ is the Fisher information. The fact that dependence on $n$ disappears means that we can obtain independent samples from the process at rate $O(1)$.
+
+* this corresponds to rate $O(n^{-1/2})$ for the original un-scaled process;
+* the cost of proposing a new skeleton point is $O(n)$ since computing $m_i(\tilde \tau_{i_0})$ reuqires using the full data set $(x_i)_{i=1}^n$;
+* so if the cost of calculating the bound $M_i(t)$ is polynomial in $n$, say $O(n^a)$ for $a \geq 1/2$, this makes for an overall complexity of $O(n^{a+1/2})$. 
+
+For example, with global bounds $a = 1$ since each term in $\Psi$ take $O(1)$ to calculate. 
+
+### 5.2 Zig-zag with sub-sampling
+
+A similar (but more involved) argument shows that 
+
+* independent examples can again be drawn at rate $O(n^{-1/2})$
+* cost of calculating the bounds is again $O(n^{1/2})$
+* the cost of proposing a new skeleton point is only $O(1)$ by design
+
+resulting in an overall $O(1)$ complexity.
 
 $~$
 
@@ -199,3 +203,5 @@ $~$
 
 Bierkens, J., Fearnhead, P., and Roberts, G. (2016). The Zig-Zag Process and Super-Efficient
 Sampling for Bayesian Analysis of Big Data
+
+
