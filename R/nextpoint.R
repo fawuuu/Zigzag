@@ -109,19 +109,21 @@ next_point_hess <- function(xi, theta, t_flip, d, derivatives, a, b){
 next_point_lipschitz <- function(xi, theta, t_flip, d, derivatives, bounds, xi0, derivatives_ref, p, subsample){
   
   flip <- FALSE
-  derivatives_ref = theta * derivatives_ref
-  derivatives_ref[which(derivatives_ref<0)] = 0
+  derivatives_baseline = theta * derivatives_ref
+  derivatives_baseline[which(derivatives_baseline<0)] = 0
+
   if(p == Inf){
-    a <- derivatives_ref + bounds*max(abs(xi-xi0))
+    a <- derivatives_baseline + bounds*max(abs(xi-xi0))
     b <- bounds
   }else{
-    a <- derivatives_ref + bounds*sum(abs(xi-xi0)^p)^(1/p)
+    a <- derivatives_baseline + bounds*sum(abs(xi-xi0)^p)^(1/p)
     b <- bounds*d^(1/p)
   }
-  
+
   while(flip == FALSE){
-    
+
     test_taus <- -a/b + sqrt((a/b)^2 + 2/b*(-log(runif(d))))
+
     tau <- min(test_taus)
     ind <- which.min(test_taus)
     
@@ -130,13 +132,14 @@ next_point_lipschitz <- function(xi, theta, t_flip, d, derivatives, bounds, xi0,
     
     if(subsample == FALSE){
       
-      if(runif(1) < max(0, derivatives(xi)[ind])/max(0, a[ind]+b*tau)){
+      if(runif(1) < max(0, theta[ind] * derivatives(xi)[ind])/max(0, a[ind]+b*tau)){
         theta[ind] <- -theta[ind]
         flip <- TRUE
       }
     }else{
       j <- sample(1, 1:length(derivatives))
-      if(runif(1) < max(0, derivatives[[j]](xi)[ind])/max(0, a[ind]+b*tau)){
+      e_ij = derivatives_ref[ind] + derivatives[[j]](xi)[ind] - derivatives[[j]](xi0)[ind]
+      if(runif(1) < max(0, theta[ind] * e_ij)/max(0, a[ind]+b*tau)){
         theta[ind] <- -theta[ind]
         flip <- TRUE
         
@@ -144,9 +147,9 @@ next_point_lipschitz <- function(xi, theta, t_flip, d, derivatives, bounds, xi0,
       
       
       if(p == Inf){
-        a = derivatives_ref + bounds*max(abs(xi-xi0))
+        a = derivatives_baseline + bounds*max(abs(xi-xi0))
       }else{
-        a = derivatives_ref + bounds*sum(abs(xi-xi0)^p)^(1/p)
+        a = derivatives_baseline + bounds*sum(abs(xi-xi0)^p)^(1/p)
       }
       
     }
