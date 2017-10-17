@@ -44,9 +44,14 @@ get_samples <- function(skeleton, k){
 zz_integrate <- function(f, skeleton, averaging = "discrete", k, ...){
   
   if (averaging == "discrete"){
-    print("test")
+    
     samples <- get_samples(skeleton, k)
-    return(mean(apply(samples,1,f,...)))
+    f_samples <- apply(samples, 1, f)
+    if(class(f_samples) == "matrix"){
+      return(apply(f_samples, 1, mean))
+    }else{
+      return(mean(f_samples))
+    } 
     
   }
   
@@ -58,20 +63,24 @@ zz_integrate <- function(f, skeleton, averaging = "discrete", k, ...){
   
   l <- length(times)
     
-  pi_hat <- numeric(l-1)
-    
-  for (i in 1:(l-1)){
-    
-    f_i <- function(s){
-      f(xi[i, ] + (s - times[i])*theta[i, ],...)
-    }
-      
-    lower_lim <- times[i]
-    upper_lim <- times[i+1]
-    pi_hat[i] <- integrate(Vectorize(f_i), lower_lim, upper_lim)$value
-    }
+  pi_hat <- matrix(0, nrow = l-1, ncol = length(f(xi[1,])))
   
-  return(1/times[l]*sum(pi_hat))
+  for(j in 1:length(f(xi[1,]))){
+    
+    for (i in 1:(l-1)){
+      
+      f_i <- function(s){
+        f(xi[i, ] + (s - times[i])*theta[i, ],...)[j]
+      }
+      
+      lower_lim <- times[i]
+      upper_lim <- times[i+1]
+      pi_hat[i,j] <- integrate(Vectorize(f_i), lower_lim, upper_lim)$value
+    }
+    
+  }
+  
+  return(1/times[l]*apply(pi_hat,2,sum))
   }
 }
 
@@ -92,10 +101,11 @@ ESS <- function(h, skeleton, B, num = round(nrow(skeleton$xi)/B)){
   tau <- max(skeleton$t_flip)
   
   samples <- get_samples(skeleton, B*num)
-  
+
   for(i in 1:B){
-    y[i] <- sqrt(tau/B) * mean(apply(samples[((i-1)*num+1):(i*num),], 1, h))
+    y[i] <- sqrt(tau/B) * mean(apply(as.matrix(samples[((i-1)*num+1):(i*num),]), 1, h))
   }
+ 
   var_as <- var(y)
   mean_h <- mean(apply(samples, 1, h))/tau
   var_h <- mean(apply(samples, 1, h)^2)/tau

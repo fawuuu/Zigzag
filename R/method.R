@@ -5,8 +5,21 @@
 #' @param skeleton object of class "zz"
 #'
 summary.zz = function(skeleton){
-  cat("The number of skeleton points is ", length(skeleton$t_flip),".\n", sep="")
+  
+  k = length(skeleton$t_flip)
+  mean_est = zz_integrate(identity, skeleton, averaging = "continuous")
+  samples = get_samples(skeleton, k)
+  cat("The number of skeleton points is ", k,".\n", sep="")
   cat("The effective sample size is ", ESS(identity, skeleton, sqrt(length(skeleton$t_flip))),".\n", sep="")
+  if(length(mean_est)==1){
+    cat("The estimated mean is ", mean_est,".\n", sep="")
+    cat("The estimated variance is ", var(samples),".\n", sep="")
+  }else{
+    cat("The estimated mean is (", paste(mean_est, collapse = ", "),").\n", sep="")
+    cat("The estimated covariance matrix is")
+    prmatrix(cov(samples), rowlab=rep("", length(mean_est)), collab=rep("", length(mean_est)))
+  }
+
 }
 
 #' plot.zz
