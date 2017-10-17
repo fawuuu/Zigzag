@@ -22,8 +22,9 @@ skeleton <- function(xi, theta, n, derivatives, bounds, bound_type = "global", s
   xi_rec <- matrix(0,n,d)
   theta_rec <- matrix(0,n,d)
   t_flip_rec <- numeric(n)
-
-  xi_rec[1, ] <- xi; theta_rec[1, ] <- theta
+  time_rec <- numeric(n)
+  
+  xi_rec[1, ] <- xi; theta_rec[1, ] <- theta; start_time <- Sys.time()
 
   #order of while & if loops here should be figured out - pointless to check bound_type at every while iteration,
   #but want to do if(test_point$flip == TRUE) part for every bound type, so also pointless to type this many times -
@@ -41,6 +42,7 @@ skeleton <- function(xi, theta, n, derivatives, bounds, bound_type = "global", s
         xi_rec[i, ] <- next_point$xi
         theta_rec[i, ] <- next_point$theta
         t_flip_rec[i] <- next_point$t_flip
+        time_rec[i] <- difftime(Sys.time(), start_time, units = "secs")
 
     }
   }
@@ -61,6 +63,7 @@ skeleton <- function(xi, theta, n, derivatives, bounds, bound_type = "global", s
         xi_rec[i, ] <- next_point$xi
         theta_rec[i, ] <- next_point$theta
         t_flip_rec[i] <- next_point$t_flip
+        time_rec[i] <- difftime(Sys.time(), start_time, units = "secs")
         a <- next_point$a
 
       }
@@ -68,23 +71,24 @@ skeleton <- function(xi, theta, n, derivatives, bounds, bound_type = "global", s
 
   if (bound_type == "lipschitz"){
 
-    derivatives_ref <- derivatives[[1]](xi_ref)
+    derivatives_ref <- derivatives[[1]](xi0)/length(derivatives)
     for (j in 2:length(derivatives)){
-      derivatives_ref = derivatives_ref + derivatives[[j]](xi_ref)
+      derivatives_ref = derivatives_ref + derivatives[[j]](xi0)/length(derivatives)
     }
 
     for (i in 2:n){
 
-      next_point <- next_point_lipschitz(xi_rec[i-1, ], theta_rec[i-1, ], t_flip_rec[i-1], d, derivatives, bounds, xi_ref, derivatives_ref, p, subsample)
+      next_point <- next_point_lipschitz(xi_rec[i-1, ], theta_rec[i-1, ], t_flip_rec[i-1], d, derivatives, bounds, xi0, derivatives_ref, p, subsample)
 
       xi_rec[i, ] <- next_point$xi
       theta_rec[i, ] <- next_point$theta
       t_flip_rec[i] <- next_point$t_flip
+      time_rec[i] <- difftime(Sys.time(), start_time, units = "secs")
 
     }
   }
 
-  out <- structure(list(xi=xi_rec, theta=theta_rec, t_flip=t_flip_rec), class = "zz")
+  out <- structure(list(xi=xi_rec, theta=theta_rec, t_flip=t_flip_rec, time=time_rec), class = "zz")
  
   out
 }
