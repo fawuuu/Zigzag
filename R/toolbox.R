@@ -9,16 +9,16 @@
 
 get_samples <- function(skeleton, k){
   
-  xi <- skeleton[[1]]
-  theta <- skeleton[[2]]
-  times <- skeleton[[3]]
+  xi <- skeleton$xi
+  theta <- skeleton$theta
+  times <- skeleton$t_flip
   samples <- matrix(0,k,ncol(xi))
   
   t_end <- times[length(times)]
   
   v <- 1:k
   sample_times <- (t_end/k)*v
-  zz_integr
+  
   j <- 1
   for (i in seq_along(sample_times)){
     
@@ -41,7 +41,7 @@ get_samples <- function(skeleton, k){
 #' 
 #' 
 
-zz_integrate <- function(f, skeleton, averaging = "discrete", k=0, ...){
+zz_integrate <- function(f, skeleton, averaging = "discrete", k, ...){
   
   if (averaging == "discrete"){
     print("test")
@@ -52,9 +52,9 @@ zz_integrate <- function(f, skeleton, averaging = "discrete", k=0, ...){
   
   if (averaging == "continuous") {
     
-  xi <- skeleton[[1]]
-  theta <- skeleton[[2]]
-  times <- skeleton[[3]] 
+  xi <- skeleton$xi
+  theta <- skeleton$theta
+  times <- skeleton$t_flip
   
   l <- length(times)
     
@@ -86,16 +86,19 @@ zz_integrate <- function(f, skeleton, averaging = "discrete", k=0, ...){
 #' @param B number of batches
 #' @param num number of samples to use per batch
 #'
-ESS = function(h, xi, theta, t_flip, B, num = round(nrow(xi)/B)){
-  y = numeric(B)
-  tau = max(t_flip)
-  samples = gen_sample(xi, theta, t_flip, B*num)
+ESS <- function(h, skeleton, B, num = round(nrow(skeleton$xi)/B)){
+  
+  y <- numeric(B)
+  tau <- max(skeleton$t_flip)
+  
+  samples <- get_samples(skeleton, B*num)
+  
   for(i in 1:B){
-    y[i] = sqrt(tau/B) * mean(apply(samples[((i-1)*num+1):(i*num),], 1, h))
+    y[i] <- sqrt(tau/B) * mean(apply(samples[((i-1)*num+1):(i*num),], 1, h))
   }
-  var_as = var(y)
-  mean_h = mean(apply(samples, 1, h))/tau
-  var_h = mean(apply(samples, 1, h)^2)/tau
+  var_as <- var(y)
+  mean_h <- mean(apply(samples, 1, h))/tau
+  var_h <- mean(apply(samples, 1, h)^2)/tau
   return(tau*(var_h-mean_h^2)/var_as)
 }
   

@@ -6,7 +6,7 @@
 #'
 summary.zz = function(skeleton){
   cat("The number of skeleton points is ", length(skeleton$t_flip),".\n", sep="")
-  cat("The effective sample size is ", ESS(identity, skeleton$xi, skeleton$theta, skeleton$t_flip, sqrt(length(skeleton$t_flip))),".\n", sep="")
+  cat("The effective sample size is ", ESS(identity, skeleton, sqrt(length(skeleton$t_flip))),".\n", sep="")
 }
 
 #' plot.zz
@@ -37,7 +37,6 @@ plot.zz = function(skeleton, contour = FALSE, f = identity, lev = 15){
           z[i,j] = f(c(axe_x[i], axe_y[j]))
         }
       }
-      print(max(z)-min(z))
       filled.contour(
         x = axe_x,
         y = axe_y,

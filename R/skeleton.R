@@ -84,8 +84,7 @@ skeleton <- function(xi, theta, n, derivatives, bounds, bound_type = "global", s
     }
   }
 
-  return(list(xi=xi_rec, theta=theta_rec, t_flip=t_flip_rec))
+  out <- structure(list(xi=xi_rec, theta=theta_rec, t_flip=t_flip_rec), class = "zz")
+ 
+  out
 }
-
-
-
