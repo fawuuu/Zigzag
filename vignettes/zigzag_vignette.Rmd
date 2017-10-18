@@ -3,6 +3,7 @@ title: "Bayesian inference with the Zig-zag process"
 author: "Fan Wu & James Hodgson"
 date: "`r Sys.Date()`"
 output: pdf_document
+fig_caption: yes
 header-includes:
  - \usepackage{amssymb}
 vignette: >
@@ -44,24 +45,50 @@ The Zig-zag package offers a set of tools to:
 * Plot graphs in one and two dimensions
 * Produce animations (in development)
 
+The main restriction is that the distribution must be of such a form that one of the bounding condiiton described in section 2.3 holds. 
+
 #1.3.1 The `skeleton` function
 
-The core of the Zig-zag package is the `skeleton` function. Given initial parameters, along with the derivatives $\partial_i \Psi(\xi)$ associated with the target distribution, and some related bounds (see 2.3), it produces a skeleton of the Zig-zag process. This is returned as an object of class `"zz"`, which is a list with three named elements: 
+The core of the Zig-zag package is the `skeleton` function. Given initial parameters, along with the derivatives $\partial_i \Psi(\xi)$ associated with the target distribution, and some related bounds (see 2.3), it produces a skeleton of the Zig-zag process. This is returned as an object of class `"zz"`, which is a list with four named elements: 
 
 * `xi`, a matrix containing the $\Xi^i$; 
 * `theta`, a matrix containing the $\Theta^i$; and 
-* `t_flip`, a vector containing the $T^i$.
+* `t_flip`, a vector containing the $T^i$
+* `time`, a vector conatining the system time elapsed up to the calculation of the latest skeleton point
 
 All the other tools take a skeleton as an argument. Example syntax for a 2D Cauchy distribution is:
 
+```{r, echo = FALSE}
+devtools::load_all()
 ```
-del = function(x){
+
+```{r}
+
+#find partial derivatives
+del_cauchy2D <- function(x){
   return(3*x/(1+sum(x^2)))
+} 
+
+#produce skeleton
+test0 <- skeleton(xi = c(1, 1), theta = c(1, 1), n = 100, derivatives = del_cauchy2D, 
+                 bounds = c(1.5, 1.5), bound_type = "global")
+```
+
+There are special `summary` and `plot` methods for the `"zz"` class (2D plots are illustrated in section 2.3:
+
+```{r}
+summary(test0)
+```
+
+```{r}
+del_cauchy1D <- function(x){
+  2*x/(1+x^2)
 }
 
-cauchy_skeleton <- skeleton( xi_0 = c(1,1), theta_0 = c(1,1), n = 10000, 
-                    derivatives = del, bounds=c(1,1), bound_type="global")
+test1 <- skeleton(xi = c(1), theta = c(1), n = 100, derivatives = del_cauchy1D, bounds = c(1))
+plot(test1)
 ```
+
 
 ----------
 
@@ -69,7 +96,7 @@ cauchy_skeleton <- skeleton( xi_0 = c(1,1), theta_0 = c(1,1), n = 10000,
 
 ### 2.1 The skeleton algorithm
 
-1.2 suggests a prototype algorithm to generate the skeleton of a Zig-zag process targeting the distribution $\pi(\xi)\propto\exp(-\Psi(\xi))$: given initial values $\Xi^{(0)}, \Theta^{(0)}$, for $k=1,2,...$,
+Section 1.2 suggests a prototype algorithm to generate the skeleton of a Zig-zag process targeting the distribution $\pi(\xi)\propto\exp(-\Psi(\xi))$: given initial values $\Xi^{(0)}, \Theta^{(0)}$, for $k=1,2,...$,
 
 1) Draw $\tau_1$,...,$\tau_d$ such that 
 \[ 
@@ -106,9 +133,27 @@ The easiest possible case is that the intensities $\lambda_i(\xi,\theta)$ are un
 **Example 1**
 
 Consider targetting a 2-dimensional Cauchy distribution, so $\pi(\xi)\propto (1+\xi^T\xi)^{-1.5}$. The required intensities are $(\theta_i\partial_i\Psi(\xi))^+ = (3 \theta_i \xi_i/(1+\xi^T\xi ) )^+$, 
-which means we can run the algorithm using the constant bounds $M_i(t)=1.5$ for $i=1,2$. 
+which means we can run the algorithm using the constant bounds $M_i(t)=1.5$ for $i=1,2$:
 
-![Zig-Zag sampler with 100 skeleton points for multivariate Cauchy distribution.](/homes/hodgson/My Documents/Proj1/Zigzag/cauchy.jpeg)
+[Need description of colour-scale as negative log-density in plot]
+
+```{r, out.width = "250px", fig.align='center', fig.cap = 'Zig-zag process Cauchy', cache = TRUE}
+#define Cauchy density
+cauchy <- function(x){
+  log(1/(1+sum(x^2))^(1.5))
+}
+
+#find partial derivatives
+del_cauchy <- function(x){
+  return(3*x/(1+sum(x^2)))
+}
+
+set.seed(888)
+
+test <- skeleton(c(1, 1), c(1, 1), 100, del_cauchy, bounds = c(1.5, 1.5), 
+                 bound_type = "global")
+plot(test, contour = TRUE, cauchy)
+```
 
 #### 2.3.2 Hessian bounds
 
@@ -130,7 +175,31 @@ H_{\Psi}(\xi) = (1/\rho^2) I + n\Sigma^{-1}
 independent of the state $\xi$, so we can choose $Q=H_{\Psi}$. We apply the algorithm with $d=2$, $\rho=1$,
 $\Sigma_{11} = 1, \ \Sigma_{12} = \Sigma_{21} = 1/2, \ \Sigma_{22} = 2$, and $n=1000$ datapoints generated from $\mathcal{N}(0,\Sigma)$.
 
-![Zig-Zag sampler with 100 skeleton points for posterior with gaussian likelihood; log-density up to normalizing constant.](/homes/hodgson/My Documents/Proj1/Zigzag/gaussian.jpeg)
+```{r, out.width = "250px", fig.align='center', fig.cap = 'Normal posterior', cache = TRUE}
+library(MASS)
+library(mvtnorm)
+
+n <- 1000
+set.seed(888)
+
+#define intensities and dominating Hessian
+data <- mvrnorm(n, mu = c(0, 0), Sigma = matrix(c(1, 0.5, 0.5, 2), nrow = 2))
+grad <- function(x){
+  return(x - matrix(c(8/7, -2/7, -2/7, 4/7), nrow = 2)%*%(apply(data, 2, sum) - n*x))
+}
+Q <- matrix(c(1000*8/7+1, -1000*2/7, -1000*2/7, 1000*4/7+1), nrow = 2)
+
+test2 <- skeleton(c(0, 0), c(1, 1), 500, grad, bounds = Q, bound_type = "hessian")
+
+#define posterior density for contour plot
+posterior <- function(x){
+  return(dmvnorm(x, log = T) + sum(dmvnorm(data, mean = x, 
+              sigma = matrix(c(1, 0.5, 0.5, 2), nrow = 2), log = T)))
+}
+
+plot(test2, contour = TRUE, f = posterior)
+```
+
 
 If $n$ is large it is generally expensive to evaluate the product $\prod_{j=1}^nf(x_j|\xi)$ (this is not an issue in this case since we would only need to precompute $\sum_{j} x_j$). The next type of bound, as well as the global constant bounds, can be used in a sub-sampling procedure which avoids the evaluation of the full likelihood, as we'll see next.
 
@@ -148,9 +217,9 @@ for any reference point $\xi^*$. We can use these bounds to sample to flip-times
 
 Two choices (which will typically affect how good the bounds are) have to be made:
 
-- Choice of $\xi^*$: From the formula above it is clear that it is desirable for $\xi$ to be close to the reference point $\xi^*$, that is $\xi^*$ should be close to the posterior mode. This reference point only need to be computed once and can then be used for the following simulations.
+- Choice of $\xi^*$: from the formula above it is clear that it is desirable for $\xi$ to be close to the reference point $\xi^*$, that is $\xi^*$ should be close to the posterior mode. This reference point only need to be computed once and can then be used for the following simulations.
 
-- Choice of $p$: There will typically be a trade-off between the magnitude of $||\xi-\xi^*||_p+t||\theta||_p$ and the constants $C_i$, for which we do not explicitly write the dependence on $p$ for notational simplicity. Without further knowledge, the Euclidean norm ($p=2$) is a natural choice.
+- Choice of $p$: there will typically be a trade-off between the magnitude of $||\xi-\xi^*||_p+t||\theta||_p$ and the constants $C_i$, for which we do not explicitly write the dependence on $p$ for notational simplicity. Without further knowledge, the Euclidean norm ($p=2$) is a natural choice.
 
 --------------------
 
@@ -186,18 +255,38 @@ In this section we'll look at how to turn the skeleton into something useful for
 
 ### 4.1 Sampling
 
-Given a skeleton $\{(\Xi^i, \Theta^i, T^i)\}_{i=1}^N$, if we want $k$ samples from $\pi$ we can just sample from the Zig-zag process at times $m \cdot T^N / k$, $m=1,\dots,k$. Importantly, the skeleton points themselves are $\textit{not}$ samples from $\pi$ - they are obviously biased towards the tails in every direction.
+Given a skeleton $\{(\Xi^i, \Theta^i, T^i)\}_{i=1}^N$, if we want $k$ samples from $\pi$ we can just sample from the Zig-zag process at times $m \cdot T^N / k$, $m=1,\dots,k$. Importantly, the skeleton points themselves are $\textit{not}$ samples from $\pi$ - they are obviously biased towards the tails in every direction. The `get_samples` function is used to generate such samples:
+
+```{r}
+get_samples(skeleton = test2, k = 5)
+```
 
 ###4.2 Ergodic averages
 
 One way to estimate ergodic averages is using samples $\xi_i$ obtained as above, and estimating 
-\[ \widehat{\pi f} = \frac{1}{m} \sum_{i=1}^m f(\xi_i). \]
+\[ \widehat{\pi f} = \frac{1}{k} \sum_{m=1}^k f(\xi_i). \] The `zz_integrate` function, with the default `averaging = "discrete"` option, does this:
+
+```{r}
+add_and_exp <-  function(a, n){
+  sum(a)^n
+}
+
+zz_integrate(f = add_and_exp, skeleton = test2, averaging = "discrete", k = 500, n = 2)
+
+```
+
+Note that arguments for $f$ which we don't need to integrate over (such as $n$ above) can be passed to $f$ by specifying them at the end. It is best to name them explicitly so `zz_integrate` does not confuse them for the sample size $k$. 
 
 Alternatively, to avoid an arbitrary choice of sample size, we can use continuous time ergodicity to estimate
 
 \[ \widehat{\pi f} = \frac{1}{T^N} \int_0^{T^N} f(\xi(s)) \ ds =  \frac{1}{T^N} \sum_{i=0}^{k-1} \int_{T^{i}}^{T^{i+1}} f(\Xi^i + \Theta^i(s - T^i)) \ ds. \]
 
-The integrals can be caluclated explicitly if $f$ is of a nice form, or else estimated numerically by any common method. 
+In principle, the integrals can be calculated explicitly if $f$ is of a nice form, or else estimated numerically by any common method. The `averaging = "continuous"` option in `zz_integrate` implements this:
+
+```{r}
+
+zz_integrate(add_and_exp, test2, averaging = "continuous", n = 2)
+```
 
 ## 5. Scaling 
 
@@ -207,10 +296,10 @@ In this section we appeal to central limit theorem-type results to compare the c
 
 Let $\hat \xi$ be the MLE for $\xi$ for the model with i.i.d. data $x_1,\dots,x_n \sim f(\cdot| \xi_0)$; so $\Psi(\xi) = - \sum_j \log f(x_j|\xi)$. For $\xi$ near to $\hat \xi$, after Taylor expanding, putting $\phi = \sqrt{n}(\xi - \hat \xi)$, and rescaling time by $\sqrt{n}$ so that the speed of the process remains $1$, we find that the intensities are
 \[ \lambda_i( \phi, \theta) = - \Big( \frac{1}{n} \sum_j \sum_k \partial_i \partial_k \log f(x_j| \hat \xi) \phi_k \Big)^+ + O(n^{-1/2}).\]
-Taking $n \to \infty$, it can be shown that $\lambda_i( \phi, \theta) \to (\theta_i \cdot [i(\xi_0)\phi]_i)^+$ almost surely, where $i(\xi_0)$ is the Fisher information. The fact that dependence on $n$ disappears means that we can obtain independent samples from the process at rate $O(1)$.
+Taking $n \to \infty$, it can be shown that $\lambda_i( \phi, \theta) \to (\theta_i \cdot [i(\xi_0)\phi]_i)^+$ almost surely, where $i(\xi_0)$ is the (true) Fisher information. The fact that dependence on $n$ disappears means that we can obtain independent samples from the process at rate $O(1)$.
 
 * this corresponds to rate $O(n^{-1/2})$ for the original un-scaled process;
-* the cost of proposing a new skeleton point is $O(n)$ since computing $m_i(\tilde \tau_{i_0})$ reuqires using the full data set $(x_i)_{i=1}^n$;
+* the cost of proposing a new skeleton point is $O(n)$ since computing $m_i(\tilde \tau_{i_0})$ requires using the full data set $(x_i)_{i=1}^n$;
 * so if the cost of calculating the bound $M_i(t)$ is polynomial in $n$, say $O(n^a)$ for $a \geq 1/2$, this makes for an overall complexity of $O(n^{a+1/2})$. 
 
 For example, with global bounds $a = 1$ since each term in $\Psi$ take $O(1)$ to calculate. 
