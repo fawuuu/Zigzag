@@ -24,15 +24,15 @@ The Zig-zag process can be used as an alternative to Markov Chain Monte Carlo to
 
 ### 1.2 Background
 
-The idea is very simple: supposing the posterior to be over $d$ dimensions, imagine we place a particle at arbitrary position $\xi_0 \in \mathbb{R}^d$ and set it travelling at speed $1$ in direction $\theta_0 \in \{ \pm 1 \}^d$. The only change in the motion of the particle we allow is that at certain times $T$, a single element of its current direction of travel $\theta(T^-)$ flips sign: for some $i$, $\theta_i(T) \leftarrow - \theta_i(T^-)$. That is, at certain times the particle instantaneously changes direction while mantaining its speed - so its overall trajectory is piecewise linear. 
+Suppose the posterior to be over $d$ dimensions, and imagine we set a particle at arbitrary position $\xi_0 \in \mathbb{R}^d$ travelling at speed $1$ in direction $\theta_0 \in \{ \pm 1 \}^d$. The only change in the motion of the particle we allow is that at certain times $T$, a single element of its current direction of travel $\theta(T^-)$ flips sign: for some $i$, $\theta_i(T) \leftarrow - \theta_i(T^-)$ - so the overall trajectory is piecewise linear. 
 
-The way these flip-times are chosen is as follows: let $t$ denote the time elapsed since the last flip (or since the beginning of the process, if no flips have yet occurred). Let the particle's location at $t$ be $\xi(t)$, and its direction $\theta$ (which is constant between flips). With each index $i \in \{1,\dots,d \}$ is associated a clock ticking at rate $\lambda_i(\xi(t),\theta)$, in the sense that if $\tau_i$ is the time until clock $i$ rings,
+The way these flip-times are chosen is as follows: let $t$ denote the time elapsed since the last flip (or since the beginning of the process, if no flips have yet occurred). Let the particle's location at $t$ be $\xi(t)$, and its direction $\theta$. With each index $i \in \{1,\dots,d \}$ is associated a clock ticking at rate $\lambda_i(\xi(t),\theta)$, in the sense that if $\tau_i$ is the time until clock $i$ rings,
 \[\mathbb{P}( \tau_i > t) = \exp( - \int_0^t \lambda_i(\xi(s),\theta) \ ds).\]
 If clock $i$ is the first to ring, at time $t=T$, then index $\theta_i$ flips at $T$. The particle changes direction, we reset $t \leftarrow 0$ and start the clocks again. The hope is that if the intensities $\lambda_i$ are chosen correctly, then the process is ergodic with invariant distribution $\pi$ over $\mathbb{R}^d$. 
 
 Happily, it turns out that under mild conditions on $\pi$ (including that it is continuously differentiable and everywhere positive), this is possible: writing $\pi(\xi) = 1/Z \cdot \exp( - \Psi(\xi))$ for a normalising constant $Z$, and taking 
 \[\lambda_i(\xi, \theta) = (\theta_i \partial_i \Psi(\xi))^+,\]
-it can be shown that the process has invariant distribution $\pi$, and ergodic averages converge correctly. Moreover, it also satisfies the strong Markov property.
+it can be shown that the process has invariant distribution $\pi$, and ergodic averages converge correctly. Moreover, it also satisfies the strong Markov property. A nice feature is that we need only know the posterior up to a constant factor to do this.
 
 A Zig-zag process is totally specified by listing the flip-times $\{T^i\}_{i=1}^\infty$, along with the positions $\{\Xi^i\}_{i=1}^\infty$ at which the flips occur occur and the directions $\{\Theta^i\}_{i=1}^\infty$ in which the process moves immediately after the flips. Call $\{(\Xi^i, \Theta^i, T^i)\}_{i=1}^\infty$ the $\textit{skeleton}$ of the process. Generating the (truncated) process is then essentially equivalent to generating a sequence of the skeleton.
 
@@ -45,15 +45,15 @@ The Zig-zag package offers a set of tools to:
 * Plot graphs in one and two dimensions
 * Produce animations (in development)
 
-The main restriction is that the distribution must be of such a form that one of the bounding condiiton described in section 2.3 holds. 
+The main restriction is that the distribution must be of such a form that one of the bounding conditions described in section 2.3 holds. 
 
 #1.3.1 The `skeleton` function
 
 The core of the Zig-zag package is the `skeleton` function. Given initial parameters, along with the derivatives $\partial_i \Psi(\xi)$ associated with the target distribution, and some related bounds (see 2.3), it produces a skeleton of the Zig-zag process. This is returned as an object of class `"zz"`, which is a list with four named elements: 
 
 * `xi`, a matrix containing the $\Xi^i$; 
-* `theta`, a matrix containing the $\Theta^i$; and 
-* `t_flip`, a vector containing the $T^i$
+* `theta`, a matrix containing the $\Theta^i$; 
+* `t_flip`, a vector containing the $T^i$;
 * `time`, a vector conatining the system time elapsed up to the calculation of the latest skeleton point
 
 All the other tools take a skeleton as an argument. Example syntax for a 2D Cauchy distribution is:
@@ -74,13 +74,15 @@ test0 <- skeleton(xi = c(1, 1), theta = c(1, 1), n = 100, derivatives = del_cauc
                  bounds = c(1.5, 1.5), bound_type = "global")
 ```
 
-There are special `summary` and `plot` methods for the `"zz"` class (2D plots are illustrated in section 2.3:
+There are special `summary` and `plot` methods for the `"zz"` class (2D plots are illustrated in section 2.3):
 
 ```{r}
 summary(test0)
 ```
 
-```{r}
+Here `ESS` is an estimate of the effective sample size.
+
+```{r, out.width = "250px", fig.align='center', fig.cap = 'Zig-zag process for 1D Cauchy', cache = TRUE}
 del_cauchy1D <- function(x){
   2*x/(1+x^2)
 }
@@ -122,7 +124,7 @@ This idea can be used to sample exactly from the true distribution of the first 
 2) find $i_0 = \arg \min_i \tilde \tau_i$
 3) accept $\tilde \tau_{i_0}$ as the time until the next flip with probability $m_{i_0} (\tilde \tau_{i_0})/M_{i_0} (\tilde \tau_{i_0})$. 
 
-The strong Markov property ensures that if $\tilde \tau_{i_0}$ is rejected, there is no need to resample; we can just continue the process from the non-skeleton point $(\Xi^k + \tilde \tau_{i_0} \Theta^k,\Theta^k,T^k + \tilde \tau_{i_0})$. This completes the full procedure for generating the skeleton, provided the bounds $M_i$ are available.
+This completes the full procedure for generating the skeleton, provided the bounds $M_i$ are available.
 
 ### 2.3 Useful bounds
 
@@ -134,8 +136,6 @@ The easiest possible case is that the intensities $\lambda_i(\xi,\theta)$ are un
 
 Consider targetting a 2-dimensional Cauchy distribution, so $\pi(\xi)\propto (1+\xi^T\xi)^{-1.5}$. The required intensities are $(\theta_i\partial_i\Psi(\xi))^+ = (3 \theta_i \xi_i/(1+\xi^T\xi ) )^+$, 
 which means we can run the algorithm using the constant bounds $M_i(t)=1.5$ for $i=1,2$:
-
-[Need description of colour-scale as negative log-density in plot]
 
 ```{r, out.width = "250px", fig.align='center', fig.cap = 'Zig-zag process Cauchy', cache = TRUE}
 #define Cauchy density
@@ -161,10 +161,7 @@ A more general and useful case is that we can find a positive-definite $Q$ which
 \[
 \theta_i\partial_i\Psi(\xi+\theta t) = \theta_i\partial_i\Psi(\xi)+\int_0^t \sum_{j=1}^d\partial_i\partial_j\Psi(\xi+\theta s)\theta_jds \le \underbrace{\theta_i\partial_i\Psi(\xi)}_\text{$a_i$} + \underbrace{\int_0^t ||Qe_i||_2||\theta||_2 ds}_\text{$b_i$}.
 \]
-The generalized inverse can then be computed as 
-\[
-G(y)=-(a/b)+\sqrt{(a/b)^2+(2y/b)}.
-\]
+The generalized inverse can then be computed exactly as $G(y)=-(a/b)+\sqrt{(a/b)^2+(2y/b)}$.
 
 **Example 2**
 
@@ -257,7 +254,7 @@ In this section we'll look at how to turn the skeleton into something useful for
 
 Given a skeleton $\{(\Xi^i, \Theta^i, T^i)\}_{i=1}^N$, if we want $k$ samples from $\pi$ we can just sample from the Zig-zag process at times $m \cdot T^N / k$, $m=1,\dots,k$. Importantly, the skeleton points themselves are $\textit{not}$ samples from $\pi$ - they are obviously biased towards the tails in every direction. The `get_samples` function is used to generate such samples:
 
-```{r}
+```{r, eval = FALSE}
 get_samples(skeleton = test2, k = 5)
 ```
 
@@ -281,10 +278,9 @@ Alternatively, to avoid an arbitrary choice of sample size, we can use continuou
 
 \[ \widehat{\pi f} = \frac{1}{T^N} \int_0^{T^N} f(\xi(s)) \ ds =  \frac{1}{T^N} \sum_{i=0}^{k-1} \int_{T^{i}}^{T^{i+1}} f(\Xi^i + \Theta^i(s - T^i)) \ ds. \]
 
-In principle, the integrals can be calculated explicitly if $f$ is of a nice form, or else estimated numerically by any common method. The `averaging = "continuous"` option in `zz_integrate` implements this:
+In principle, the integrals can be calculated explicitly if $f$ is of a nice form, or else estimated numerically by any common method. The `averaging = "continuous"` option in `zz_integrate` implements this using the base-R `integrate` function.
 
 ```{r}
-
 zz_integrate(add_and_exp, test2, averaging = "continuous", n = 2)
 ```
 
@@ -306,13 +302,103 @@ For example, with global bounds $a = 1$ since each term in $\Psi$ take $O(1)$ to
 
 ### 5.2 Zig-zag with sub-sampling
 
-A similar (but more involved) argument shows that 
+A similar (but more involved) argument shows that: 1) independent examples can again be drawn at rate $O(n^{-1/2})$; 2) cost of calculating the bounds is again $O(n^{1/2})$; and 3) the cost of proposing a new skeleton point is only $O(1)$ by design, resulting in an overall $O(1)$ complexity. This is the super-efficiency property.
 
-* independent examples can again be drawn at rate $O(n^{-1/2})$
-* cost of calculating the bounds is again $O(n^{1/2})$
-* the cost of proposing a new skeleton point is only $O(1)$ by design
 
-resulting in an overall $O(1)$ complexity.
+**Example 3**
+  
+  Consider again a Bayesian setting where we are interested in obtaining samples from a posterior $\pi(\xi|x_{1:n})\propto \prod_{j=1}^n f(x_j|\xi)$ (assume for notational simplicity an improper prior). We want to test the scalability of Zigzag with subsampling in a setting with a different prior than a normal. Therefore we define a distribution $f(x|\xi)\propto \exp(-\frac{1+100(x-\xi)^2}{1+||x||_2})$. Data simulated from this distribution with $\xi=0\in\mathbb{R}^2$ is shaped like a doughnut with a hole at the origin, so if we naively chose $E_i^j(\xi)=\partial_i f(x_j|\xi)$ then the intensities $m_i^j$ would vary vastly in $j$ resulting in bad bounds $M_i$. 
+  
+```{r, echo = FALSE,  out.width = "250px", fig.align='center'}
+#First plot
+MCMC <- function(K=1000, start=c(0,0)){
+  B = matrix(NA, K, 2)
+  mu = start
+  B[1,] = mu
+  lp = -psi_dough(mu)
+  for(k in 2:K){
+    mup = mu + 0.1*rnorm(2)
+    lpp = -psi_dough(mup)
+    MHR = lpp - lp
+    if(log(runif(1))<MHR){
+      mu = mup
+      lp = lpp
+    }
+    B[k,] = mu
+  }
+  return(B)
+}
+
+psi_dough = function(x){
+  (1 + 100*sum(x^2))/(0.01 + sqrt(sum(x^2)))
+}
+z = matrix(0,nrow=length(seq(-0.3,0.3,0.01)),ncol=length(seq(-0.3,0.3,0.01)))
+for(i in 1:length(seq(-0.3,0.3,0.01))){
+  for(j in 1:length(seq(-0.3,0.3,0.01))){
+    z[i,j] = -psi_dough(c(seq(-0.3,0.3,0.01)[i],seq(-0.3,0.3,0.01)[j]))
+  }
+}
+
+data = MCMC(1000, start=c(0,0.1))
+filled.contour(
+  x = seq(-0.3,0.3,length.out=nrow(z)),
+  y = seq(-0.3,0.3,length.out=ncol(z)),
+  z = z,
+  plot.axes={points(data,cex=0.5); axis(1); axis(2); box()}
+)
+```
+  
+However, instead of directly using the individual likelihoods one can "smoothen" the components making up $\Psi=-\log\pi$ and choose $E_i^j(\xi) = \partial_i\Psi(\xi^*) + \partial_i \log f(x_j|\xi) - \partial_i \log f(x_j|\xi^*)$. A short computation shows $\nabla \log f(x_j|\xi) = \frac{2(\xi-x_j)}{1+||x_j||}$, so the Lipschitz condition is satisfied with bounds $C_i = 2n\max_j \Big|\frac{x_j^{i}}{1+||x_j||_2}\Big|$. If we choose the reference point $\xi^*$ to be the posterior mean of the data (which is easy to compute and requires $O(n)$), Zigzag with subsampling turns out to be superefficient also in this case, that is the effective sample size per epoch (one epoch is the time required for one evaluation of the full likelihood).
+```{r, echo = FALSE,  out.width = "250px", fig.align='center'}
+results = matrix(11:16, nrow=6, ncol=11)
+for(repetition in 2:11){
+  for(runner in 1:6){
+    set.seed(42)
+    n = 2^(10+runner)
+    data = MCMC(n, start=c(0,0.1))
+    
+    #DERIVATIVES AND STUFF
+    xi0 = apply(data, 2, mean)
+    d_ref = apply(2*(xi0 - t(data))/(1+sqrt(apply(data^2,1,sum))), 1, sum)
+    
+    derivatives = vector("list", n)
+    for(i in 1:n){
+      closure <- function(values) {
+        force(values)
+        function(x) {
+          return(d_ref + 2*n*(x-xi0)/(1+sqrt(sum(values^2))))     
+        }
+      }
+      derivatives[[i]] <- closure(data[i,])
+    }
+    
+    bounds = 2*n*apply(abs(data/(1+sqrt(apply(data^2,1,sum)))), 2, max)
+    
+    test = skeleton(c(0,0.1), c(1,1), 10000, derivatives, bounds, bound_type = "lipschitz", subsample = TRUE, xi0 = xi0, p = Inf)
+    results[runner,repetition] = log(ESS(mean, test, 100)/(test$time[10000]/test$time[2]))
+  }
+}
+
+ess_res = apply(results,1,median)
+covariates = 1:6
+fitline = lm(ess_res~covariates)
+
+boxplot(results[1,-1], results[2,-1],results[3,-1], results[4,-1],results[5,-1], results[6,-1], col="grey",
+        ylab = "log(ESS/epochs), base = 2" ,xlab = "log(n), base = 2")
+axis(1,at=1:6,labels=11:16)
+abline(fitline$coefficients,col="red")
+```
+
+## 6. Limitations
+The Zigzag sampler is a strong sampling method, especially in big data settings where the repeated evaluation of functions depending on the full data is infeasible. However, it does have its downsides:
+  
+* We must be able to evaluate the partial derivatives of the log-density (cheaply).
+* We need (good) bounds on these derivatives. If we have poor bounds, than the ratio proposed flip-times will often be rejected, resulting in many evaluations of the partial derivatives.
+* The subsampling approach relies heavily on a good estimate of the MAP estimator $\xi^*$ being available. When started away from $\xi^*$ the algorithm spends the (vast, vast) majority of time on the first few steps moving towards $\xi^*$.
+
+Intuitively, (as many other algorithms) the Zigzag sampler will not be suitable for multimodal target distributions. Another issue might arise in the subsampling approach, in a setting with modes, which are not well separated, we expect Zigzag with subsampling to suffer from the fact that potentially multiple equally good choices for $\xi^*$ exist. However, in practice Zigzag is often difficult to apply, since knowledge about the gradient of the log-density is required. For example in a normal mixture model, this expressions takes a rather complicated form.
+
+
 
 $~$
 

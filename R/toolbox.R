@@ -47,9 +47,9 @@ zz_integrate <- function(f, skeleton, averaging = "discrete", k, ...){
   if (averaging == "discrete"){
     
     samples <- get_samples(skeleton, k)
-    f_samples <- apply(samples, 1, f)
+    f_samples <- apply(samples, 1, f, ...)
     if(class(f_samples) == "matrix"){
-      return(apply(f_samples, 1, mean))
+      return(apply(f_samples, 1, mean, ...))
     }else{
       return(mean(f_samples))
     } 
@@ -64,9 +64,9 @@ zz_integrate <- function(f, skeleton, averaging = "discrete", k, ...){
   
   l <- length(times)
     
-  pi_hat <- matrix(0, nrow = l-1, ncol = length(f(xi[1,])))
+  pi_hat <- matrix(0, nrow = l-1, ncol = length(f(xi[1,], ...)))
   
-  for(j in 1:length(f(xi[1,]))){
+  for(j in 1:length(f(xi[1,], ...))){
     
     for (i in 1:(l-1)){
       
