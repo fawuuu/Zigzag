@@ -1,3 +1,11 @@
+sample_eff = function(m){
+  batch = floor(log(m, base=1000))
+  rest = m/1000^batch
+  batch_sample = sample(0:999, batch, replace = TRUE)
+  rest_sample = sample(0:(rest-1), 1)
+  return(1 + rest_sample*1000^batch + sum(batch_sample*1000^(0:(batch-1))))
+}
+
 #' next_point_global
 #'
 #' a function which determines a new skeleton point for the Zig-zag process given global bounds on the directional
@@ -36,7 +44,8 @@ next_point_global <- function(xi, theta, t_flip, d, derivatives, bounds, subsamp
       
     }else{
       
-      j <- sample(1, 1:length(derivatives))
+      j <- sample_eff(length(derivatives))
+      print(j)
       if(runif(1) < max(0, theta[ind]*derivatives[[j]](xi)[ind])/bounds[ind]){
         theta[ind] <- -theta[ind]
         flip <- TRUE
@@ -137,7 +146,7 @@ next_point_lipschitz <- function(xi, theta, t_flip, d, derivatives, bounds, xi0,
         flip <- TRUE
       }
     }else{
-      j <- sample(1, 1:length(derivatives))
+      j <- sample_eff(length(derivatives))
       e_ij = derivatives_ref[ind] + derivatives[[j]](xi)[ind] - derivatives[[j]](xi0)[ind]
       if(runif(1) < max(0, theta[ind] * e_ij)/max(0, a[ind]+b*tau)){
         theta[ind] <- -theta[ind]

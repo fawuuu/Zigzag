@@ -14,7 +14,7 @@
 #'
 #'
 skeleton <- function(xi, theta, n, derivatives, bounds, bound_type = "global", subsample = FALSE, xi0 = 0, p = 2){
-
+  
   #set inital time, no. dimensions and record tables for skeleton
   t_flip <- 0
   d <- length(xi)
