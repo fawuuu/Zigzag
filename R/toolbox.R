@@ -8,7 +8,7 @@
 #'
 
 get_samples <- function(skeleton, k){
-  
+
   xi <- skeleton$xi
   theta <- skeleton$theta
   times <- skeleton$t_flip
@@ -18,15 +18,16 @@ get_samples <- function(skeleton, k){
   
   v <- 1:k
   sample_times <- (t_end/k)*v
-  
+
   j <- 1
-  for (i in seq_along(sample_times)){
-    
-    while(sample_times[i] < times[j] | sample_times[i] > times[j+1]){
+  for (i in 1:(k-1)){
+
+    while(sample_times[i] < times[j] || sample_times[i] > times[j+1]){
       j <- j+1
     }
     samples[i, ] <- xi[j, ] + (sample_times[i] - times[j])*theta[j, ]
   }
+  samples[k, ] <- xi[k, ]
   samples
 }
 
@@ -96,10 +97,10 @@ zz_integrate <- function(f, skeleton, averaging = "discrete", k, ...){
 #' @param num number of samples to use per batch
 #'
 ESS <- function(h, skeleton, B, num = round(nrow(skeleton$xi)/B)){
-  
+
   y <- numeric(B)
   tau <- max(skeleton$t_flip)
-  
+
   samples <- get_samples(skeleton, B*num)
 
   for(i in 1:B){
