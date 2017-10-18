@@ -1,3 +1,10 @@
+#' sample_eff
+#'
+#' a function which samples a number between 1 and m efficiently
+#'
+#'@param m sample one number between 1 and m
+#'
+#'
 sample_eff = function(m){
   batch = floor(log(m, base=1000))
   rest = m/1000^batch
