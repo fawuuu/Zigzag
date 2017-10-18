@@ -17,9 +17,9 @@ vignette: >
 
 The Zig-zag process can be used as an alternative to Markov Chain Monte Carlo to sample from a posterior distribution $\pi$. Its key properties are:
 
-* It is non-reversible, unlike traditional MCMC, meaning it may converge faster 
-* It can often be applied in a sub-sampling form which still targets the true posterior, meaning it scales well with no loss of accuracy (this has not yet been worked out for MCMC)
-* It seems likely to sometimes scale $\textit{super-efficiently}$, in that the cost of getting independent posterior samples (after convergence) does not depend on the size of the data 
+* It is non-reversible, unlike traditional MCMC, meaning it may converge faster;
+* It can often be applied in a sub-sampling form which still targets the true posterior, meaning it scales well with no loss of accuracy (this has not yet been worked out for MCMC);
+* It seems likely to sometimes scale $\textit{super-efficiently}$, in that the cost of getting independent posterior samples (after convergence) does not depend on the size of the data;
 
 ### 1.2 Background
 
@@ -33,15 +33,43 @@ Happily, it turns out that under mild conditions on $\pi$ (including that it is 
 \[\lambda_i(\xi, \theta) = (\theta_i \partial_i \Psi(\xi))^+,\]
 it can be shown that the process has invariant distribution $\pi$, and ergodic averages converge correctly. Moreover, it also satisfies the strong Markov property.
 
-A Zig-zag process is totally specified by listing the flip-times $\{T^i\}_{i=1}^\infty$, along with the positions $\{\Xi^i\}_{i=1}^\infty$ at which the flips occur occur and the directions $\{\Theta^i\}_{i=1}^\infty$ in which the process moves immediately after the flips. Call $\{(\Xi^i, \Theta^i, T^i)\}_{i=1}^\infty$ the $\textit{skeleton}$ of the process. Generating the (truncated) process is then essentially equivalent to generating a sequence of the skeleton. The only real difficulty in doing this is sampling from the clocks to find the flip-times. 
+A Zig-zag process is totally specified by listing the flip-times $\{T^i\}_{i=1}^\infty$, along with the positions $\{\Xi^i\}_{i=1}^\infty$ at which the flips occur occur and the directions $\{\Theta^i\}_{i=1}^\infty$ in which the process moves immediately after the flips. Call $\{(\Xi^i, \Theta^i, T^i)\}_{i=1}^\infty$ the $\textit{skeleton}$ of the process. Generating the (truncated) process is then essentially equivalent to generating a sequence of the skeleton.
+
+#1.3 The Zig-zag package
+
+The Zig-zag package offers a set of tools to:
+
+* Fetch samples from a distribution
+* Perform Monte Carlo inetgration of functions, including those with vector output
+* Plot graphs in one and two dimensions
+* Produce animations (in development)
+
+#1.3.1 The `skeleton` function
+
+The core of the Zig-zag package is the `skeleton` function. Given initial parameters, along with the derivatives $\partial_i \Psi(\xi)$ associated with the target distribution, and some related bounds (see 2.3), it produces a skeleton of the Zig-zag process. This is returned as an object of class `"zz"`, which is a list with three named elements: 
+
+* `xi`, a matrix containing the $\Xi^i$; 
+* `theta`, a matrix containing the $\Theta^i$; and 
+* `t_flip`, a vector containing the $T^i$.
+
+All the other tools take a skeleton as an argument. Example syntax for a 2D Cauchy distribution is:
+
+```
+del = function(x){
+  return(3*x/(1+sum(x^2)))
+}
+
+cauchy_skeleton <- skeleton( xi_0 = c(1,1), theta_0 = c(1,1), n = 10000, 
+                    derivatives = del, bounds=c(1,1), bound_type="global")
+```
 
 ----------
 
 ## 2. Implementation
 
-### 2.1 Basic algorithm
+### 2.1 The skeleton algorithm
 
-Following the above, a prototype algorithm to generate the skeleton of a Zig-zag process targeting the distribution $\pi(\xi)\propto\exp(-\Psi(\xi))$ proceeds as follows. Given initial values $\Xi^{(0)}, \Theta^{(0)}$, for $k=1,2,...$ do:
+1.2 suggests a prototype algorithm to generate the skeleton of a Zig-zag process targeting the distribution $\pi(\xi)\propto\exp(-\Psi(\xi))$: given initial values $\Xi^{(0)}, \Theta^{(0)}$, for $k=1,2,...$,
 
 1) Draw $\tau_1$,...,$\tau_d$ such that 
 \[ 
@@ -95,7 +123,7 @@ G(y)=-(a/b)+\sqrt{(a/b)^2+(2y/b)}.
 
 **Example 2**
 
-Suppose we want samples from the posterior $\pi(\xi|x_{1:n})$, where $x_1,...,x_n\in\mathbb{R}^d$ are i.i.d. data generated from $f(x_j|\xi)\sim\mathcal{N}(\xi,\Sigma)$, and $\pi\sim\mathcal{N}(0,\rho^2I)$ is a prior on the parameter. The Hessian of the negative log density is
+Suppose we want samples from the posterior $\pi(\xi|x_{1:n})$, where $x_1,...,x_n\in\mathbb{R}^d$ are i.i.d. data generated from $f(x_j|\xi)\sim\mathcal{N}(\xi,\Sigma)$, and $\pi\sim\mathcal{N}(0,\rho^2I)$ is a prior on the parameter. The Hessian of the negative log density is easily caluclated as
 \[
 H_{\Psi}(\xi) = (1/\rho^2) I + n\Sigma^{-1}
 \]
