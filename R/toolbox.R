@@ -71,7 +71,7 @@ zz_integrate <- function(f, skeleton, averaging = "discrete", k, ...){
     for (i in 1:(l-1)){
       
       f_i <- function(s){
-        f(xi[i, ] + (s - times[i])*theta[i, ],...)[j]
+        f(xi[i, ] + (s - times[i])*theta[i, ], ...)[j]
       }
       
       lower_lim <- times[i]
@@ -81,7 +81,7 @@ zz_integrate <- function(f, skeleton, averaging = "discrete", k, ...){
     
   }
   
-  return(1/times[l]*apply(pi_hat,2,sum))
+  return(1/times[l]*apply(pi_hat, 2, sum))
   }
 }
 
